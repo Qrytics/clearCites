@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  # Allow manual re-deployment from the Actions tab
+  workflow_dispatch:
+
+# Grant the GITHUB_TOKEN the permissions required for Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one concurrent deployment; skip in-progress runs but do not cancel them
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: scholargraph/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: scholargraph/web
+        run: npm ci
+
+      - name: Build static export
+        working-directory: scholargraph/web
+        run: npm run build
+        env:
+          NEXT_PUBLIC_BASE_PATH: /clearCites
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: scholargraph/web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

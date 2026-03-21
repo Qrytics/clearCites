@@ -73,7 +73,7 @@ const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2 }) => {
       id: n.id,
       position: { x: Math.random() * 600, y: Math.random() * 400 },
       data: { label: n.label ?? n.id, ...n.data },
-      style: nodeStyle(n.data?.impact_score),
+      style: nodeStyle(n.data?.impact_score as number | undefined),
     }));
     setNodes(rfNodes);
     setEdges(rawEdges);
