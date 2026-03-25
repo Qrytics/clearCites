@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "scholargraph"
+name = "clearcites"
 version = "0.1.0"
 description = "Mapping the DNA of Human Knowledge – a research paper visualization engine."
 readme = "README.md"

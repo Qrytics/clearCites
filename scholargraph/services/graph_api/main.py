@@ -11,8 +11,8 @@ from fastapi import FastAPI, HTTPException, Query
 from neo4j import AsyncGraphDatabase
 
 app = FastAPI(
-    title="ScholarGraph API",
-    description="Graph traversal API for the ScholarGraph research visualization tool.",
+    title="clearCites API",
+    description="Graph traversal API for the clearCites research visualization tool.",
     version="0.1.0",
 )
 
