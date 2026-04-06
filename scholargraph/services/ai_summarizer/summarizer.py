@@ -55,7 +55,7 @@ def _extractive_summary(title: str, abstract: str, n: int = 3) -> str:
 
 async def generate_summary(title: str, abstract: str) -> str:
     """Return a 3-sentence extractive summary of a paper (no API key required)."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _extractive_summary, title, abstract, 3)
 
 
@@ -96,11 +96,12 @@ def _classify_relationship(
     if val == 0 and chal == 0 and build == 0:
         return "builds_on" if similarity >= _SIMILARITY_THRESHOLD_RELATED else "unrelated"
 
-    winner = max(
-        [("validates", val), ("challenges", chal), ("builds_on", build)],
-        key=lambda t: t[1],
-    )
-    return winner[0]  # type: ignore[return-value]
+    _SCORES: dict[RelationshipType, int] = {
+        "validates": val,
+        "challenges": chal,
+        "builds_on": build,
+    }
+    return max(_SCORES, key=lambda k: _SCORES[k])
 
 
 def _compute_relationship(abstract_a: str, abstract_b: str) -> dict:
@@ -134,5 +135,5 @@ async def evaluate_relationship(abstract_a: str, abstract_b: str) -> dict:
             "correlation_value": 0.0 – 1.0,
         }
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _compute_relationship, abstract_a, abstract_b)
