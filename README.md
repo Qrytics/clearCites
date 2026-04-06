@@ -1,17 +1,22 @@
 # clearCites
+
+🌐 **[Live Site → https://qrytics.github.io/clearCites/](https://qrytics.github.io/clearCites/)**
+
+---
+
 clearCites is an open-source platform designed to break down the barriers of academia. By treating research papers as nodes in a massive, interconnected web, it allows users to visually navigate the "lineage of ideas." Traditional research tools are built for experts; clearCites is built for transparency.
 
 ---
 
-# 🕸️ ScholarGraph
+# 🕸️ clearCites
 
 **Mapping the DNA of Human Knowledge.**
 
-ScholarGraph is the core engine of clearCites – an open-source visual discovery tool that turns academic research into an interactive, navigable map. By treating papers as **Nodes** and citations/authors as **Edges**, it provides a transparent look into how science is funded, built, and validated.
+clearCites is an open-source visual discovery tool that turns academic research into an interactive, navigable map. By treating papers as **Nodes** and citations/authors as **Edges**, it provides a transparent look into how science is funded, built, and validated.
 
-## 💡 Why ScholarGraph?
+## 💡 Why clearCites?
 
-The current academic landscape is siloed and difficult for the public to navigate. ScholarGraph solves this by:
+The current academic landscape is siloed and difficult for the public to navigate. clearCites solves this by:
 
 - **Visualizing Relationships** – See how papers "build on" or "validate" each other through a dynamic graph interface.
 - **Taxpayer Transparency** – Easily identify research funded by public grants (NIH, NSF, etc.) to see the real-world impact of tax dollars.
