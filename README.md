@@ -40,7 +40,7 @@ scholargraph/
 │   └── graph_pusher.py     # Converts papers into Neo4j Nodes/Edges
 ├── services/
 │   ├── graph_api/          # FastAPI logic for traversing the graph
-│   └── ai_summarizer/      # LLM logic to evaluate relationship types
+│   └── ai_summarizer/      # ML logic to evaluate relationship types
 ├── web/
 │   ├── components/
 │   │   ├── GraphCanvas.tsx # The React Flow visualization canvas
@@ -61,7 +61,7 @@ scholargraph/
 | Database       | Neo4j                       | Native graph DB – treats relationships as first-class citizens |
 | Backend        | Python (FastAPI)            | Async performance + data-science ecosystem |
 | Graph Visuals  | React Flow                  | Interactive node/edge canvas with drag & click |
-| AI Integration | LangChain + OpenAI          | Generates summaries and evaluates paper relationships |
+| ML / NLP       | scikit-learn + numpy        | Generates summaries and evaluates paper relationships (no API key needed) |
 | APIs           | Semantic Scholar + CrossRef | Paper metadata, citation counts, funding info |
 
 ---
@@ -71,7 +71,6 @@ scholargraph/
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
-- An OpenAI API key
 
 ### 1. Clone and configure
 
@@ -79,7 +78,7 @@ scholargraph/
 git clone https://github.com/Qrytics/clearCites.git
 cd clearCites/scholargraph
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY (and optionally SEMANTIC_SCHOLAR_API_KEY)
+# Optionally set SEMANTIC_SCHOLAR_API_KEY for higher rate limits
 ```
 
 ### 2. Start all services
