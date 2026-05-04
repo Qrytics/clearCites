@@ -204,8 +204,24 @@ const GraphCanvasInner: React.FC<Props> = ({ seedDoi, depth = 2, expand }) => {
   };
 
   return (
-    <div className="flex h-full w-full">
-      <div ref={shellRef} className="flex flex-1 flex-col h-full min-h-0">
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        minHeight: 0,
+      }}
+    >
+      <div
+        ref={shellRef}
+        style={{
+          display: "flex",
+          flex: 1,
+          flexDirection: "column",
+          minHeight: 0,
+          background: "#0b1020",
+        }}
+      >
         <div
           style={{
             display: "flex",
@@ -221,7 +237,7 @@ const GraphCanvasInner: React.FC<Props> = ({ seedDoi, depth = 2, expand }) => {
             Full screen
           </button>
         </div>
-        <div className="flex-1 h-full min-h-0">
+        <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -232,6 +248,7 @@ const GraphCanvasInner: React.FC<Props> = ({ seedDoi, depth = 2, expand }) => {
             fitView={false}
             minZoom={0.08}
             maxZoom={1.6}
+            style={{ width: "100%", height: "100%" }}
           >
             <Background />
             <Controls />

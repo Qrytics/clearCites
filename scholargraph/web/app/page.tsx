@@ -24,12 +24,14 @@ export default function Home() {
       >
         🕸️ clearCites
       </h1>
-      <p style={{ fontSize: "1.25rem", color: "#94a3b8", maxWidth: 620, marginBottom: "2rem" }}>
+      <p style={{ fontSize: "1.25rem", color: "#94a3b8", maxWidth: 640, marginBottom: "2rem" }}>
         Open-source citation graph in Neo4j: papers, citations, authors, and keywords on a React Flow
-        canvas (Dagre layout). Discover searches OpenAlex and ingests work neighborhoods; Explore loads
-        by DOI. Funding and abstracts show in the paper sidebar when the API has them. Optional{" "}
-        <code style={{ fontSize: "0.85em" }}>/ai/*</code> routes are extractive TF-IDF helpers—not an
-        LLM. Everything below needs Docker (Neo4j + FastAPI).
+        canvas (Dagre layer layout, fit view, full-screen). <strong>Discover</strong> searches OpenAlex
+        and ingests work neighborhoods. <strong>Explore</strong> loads by DOI or{" "}
+        <code style={{ fontSize: "0.85em" }}>openalex:W…</code>. Funding and abstracts show in the paper
+        sidebar when the API has them. Optional <code style={{ fontSize: "0.85em" }}>/ai/*</code> routes
+        are extractive TF-IDF helpers — no external LLM. Everything below needs Docker
+        (Neo4j + FastAPI).
       </p>
 
       {/* Feature cards */}
@@ -62,7 +64,7 @@ export default function Home() {
           {
             icon: "🔍",
             title: "Search & ingest",
-            desc: "Neo4j GET /search and /search/by-keyword for what is already in the DB; clearcites-ingest (Semantic Scholar or CrossRef) for DOI-first pipelines.",
+            desc: "Neo4j GET /search and /search/by-keyword for what's already in the DB; clearcites-ingest (Semantic Scholar or CrossRef) for DOI-first pipelines. Papers carry openalex_id for dedup (db/dedup_openalex.cypher).",
           },
         ].map(({ icon, title, desc }) => (
           <div
@@ -147,11 +149,12 @@ export default function Home() {
         </a>
       </div>
 
-      <footer style={{ marginTop: "3rem", fontSize: "0.8rem", color: "#475569", maxWidth: 520, lineHeight: 1.5 }}>
+      <footer style={{ marginTop: "3rem", fontSize: "0.8rem", color: "#475569", maxWidth: 560, lineHeight: 1.5 }}>
         This GitHub Pages build is a static export from Actions: navigation works, but Discover/Explore
         need <code style={{ fontSize: "0.75rem" }}>docker compose up</code> in{" "}
         <code style={{ fontSize: "0.75rem" }}>scholargraph/</code> (Neo4j schema + API). See the repo
-        README for retries, CI, and dedup notes. MIT License.
+        README for OpenAlex retries (<code style={{ fontSize: "0.75rem" }}>OPENALEX_MAX_RETRIES</code>),
+        CI (test + docker-images), and dedup notes. MIT License.
       </footer>
     </main>
   );

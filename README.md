@@ -107,6 +107,7 @@ This matters if you change the frontend or hit odd Next.js errors.
 | **`NEXT_PUBLIC_BASE_PATH=""` in Compose** | Serves the app at **`/`** (not under **`/clearCites`**). GitHub Pages still uses **`/clearCites`** via CI only. |
 | **Discover global CSS** | Import global styles only from **`web/app/layout.tsx`** (Discover uses **`./discover/discover.css`**). Nested layouts must not import global `.css` files. |
 | **`output: "export"`** | Static export is **off** during **`next dev`** (Docker and local). It is turned on **only** when **`NEXT_STATIC_EXPORT=true`** (GitHub Pages sets this in **`.github/workflows/pages.yml`**). Leaving export always on breaks the dev server’s CSS pipeline (“Module parse failed” on `.css`). |
+| **Embedding `GraphCanvas`** | The component fills its parent with **`position: absolute; inset: 0`**, so any wrapper that hosts it must be **`position: relative`** and have a **definite height** (e.g. fixed `height` or `flex: 1` inside a flex column). Both `/discover` and `/explore` follow that pattern; copy it for any new graph embed. |
 
 **If you need a clean Next cache:** `docker compose down` then remove the volume explicitly, e.g. `docker volume rm scholargraph_clearcites_web_next` (prefix may match your project folder name), then **`docker compose up --build`**. Optionally delete **`scholargraph/web/.next`** on the host so nothing stale shadows the mount (Compose’s volume normally overrides that path in the container anyway).
 
@@ -276,8 +277,8 @@ curl -s "http://localhost:8000/papers/10.1038%2Fnature14539"
 
 **Manual path:**
 
-1. Open **http://localhost:3000/explore** (or **Explore graph** on the home page).
-2. Paste the **DOI** you found (e.g. from `/search`), choose **depth** (1–3 citation hops), and toggle:
+1. Open **http://localhost:3000/explore** (or **Explore graph** on the home page). The page uses the same **`SCHOLARGRAPH`** header as Discover (logo dot, mono nav links).
+2. Paste the **DOI** you found (e.g. from `/search`) — or an **`openalex:W…`** key if you ingested via Discover — choose **depth** (1–3 citation hops), and toggle:
    - **Citations** — papers linked by `CITES` (direction: source **cites** target).
    - **Authors** — who wrote each paper in view.
    - **Co-authors** — other papers that share an author with your seed.
@@ -314,20 +315,40 @@ curl -s "http://localhost:8000/graph?doi=10.1038%2Fnature14539&depth=2&expand=ci
 
 ```
 scholargraph/
-├── data_pipeline/          # Semantic Scholar, CrossRef, OpenAlex clients; parser; graph_pusher; openalex_subgraph
+├── data_pipeline/                         # Semantic Scholar, CrossRef, OpenAlex
+│   ├── api_clients/
+│   │   ├── openalex.py                    # high-level client (search, get_work, batch ids)
+│   │   └── openalex_http.py               # retries + error message shaping (OPENALEX_*)
+│   ├── parser.py                          # canonical Paper objects + canonical_paper_key_from_work
+│   ├── graph_pusher.py                    # MERGE Paper/Author/Keyword/Funder + openalex_id
+│   ├── openalex_subgraph.py               # fetch + ingest neighborhoods (Discover backend)
+│   └── openalex_sort.py                   # whitelist sort_field per entity
 ├── tools/
-│   └── ingest_doi.py       # `clearcites-ingest` (pyproject.toml)
+│   └── ingest_doi.py                      # `clearcites-ingest` CLI
 ├── services/
-│   ├── graph_api/          # FastAPI: /search, /graph, /openalex/*, CORS for localhost
-│   └── ai_summarizer/
-├── web/app/
-│   ├── discover/           # OpenAlex terminal UI + ingest + embedded graph
-│   └── explore/            # Manual DOI + graph toggles
+│   ├── graph_api/                         # FastAPI: /search, /graph, /openalex/*, /ai/*
+│   │   ├── main.py                        # app, /papers, /search, /graph, /authors, AI router mount
+│   │   └── openalex_routes.py             # /openalex/search and /openalex/explore
+│   └── ai_summarizer/                     # /ai/summary + /ai/relationship (TF-IDF, no LLM)
+├── web/
+│   ├── app/
+│   │   ├── layout.tsx                     # next/font (Courier_Prime, DM_Sans, Fraunces) + global CSS
+│   │   ├── page.tsx                       # marketing landing
+│   │   ├── discover/{page,layout,discover.css}
+│   │   └── explore/page.tsx               # uses the same arxterm header as Discover
+│   ├── components/GraphCanvas.tsx         # React Flow canvas, absolute fill in relative parent
+│   ├── lib/graphLayout.ts                 # Dagre LR layout
+│   └── hooks/useGraphData.ts              # GET /graph fetcher
 ├── db/
 │   ├── schema.cypher
-│   └── dedup_openalex.cypher   # optional: find shared openalex_id for manual merge
+│   └── dedup_openalex.cypher              # optional: find shared openalex_id for manual merge
 ├── docker-compose.yml
 └── .env.example
+tests/
+├── conftest.py                            # shared mock_neo4j + client fixtures
+├── test_parser.py
+├── test_graph_api.py                      # /papers, /search, /graph, /ai/* smoke tests
+└── test_openalex_routes.py                # /openalex/search and /openalex/explore (mocked)
 ```
 
 More READMEs:
@@ -414,11 +435,12 @@ GitHub Actions on **`main`** (see `.github/workflows/ci.yml`):
 
 These are **known** gaps, not setup mistakes:
 
-- **Discover graph ingest** is only for **Works**; other entity tabs are OpenAlex catalog search only.
+- **Discover graph ingest** is only for **Works**; other entity tabs are OpenAlex catalog search only (labeled "(catalog)" in the UI).
 - **GitHub Pages** ships a **static** site only — no bundled Neo4j/API (see the note at the top of this README).
 - **Graph layout** uses a deterministic **Dagre** layer in the web app (not physics-based persistence in Neo4j).
 - **Tests** mock Neo4j and OpenAlex HTTP; they do not hit the live `api.openalex.org`.
 - **`plain_summary` in the web UI** is only shown when the API provides it; default graph payloads may omit it.
+- **Identity / dedup** — the API keys papers by DOI when present, else `openalex:W…`. Mixed ingest paths can create duplicates; `db/dedup_openalex.cypher` lists candidates but merging is a manual Cypher step.
 
 ---
 

@@ -713,10 +713,11 @@ export default function DiscoverPage() {
                 </p>
               )}
               {graphSeed && (
-                <div className="arx-graph-wrap" style={{ display: "flex", flexDirection: "column" }}>
-                  <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
-                    <GraphCanvas seedDoi={graphSeed} depth={2} expand={graphExpand} />
-                  </div>
+                <div
+                  className="arx-graph-wrap"
+                  style={{ position: "relative", height: 520 }}
+                >
+                  <GraphCanvas seedDoi={graphSeed} depth={2} expand={graphExpand} />
                 </div>
               )}
             </div>
