@@ -10,7 +10,7 @@ The **full walkthrough** (dependencies, Docker, schema, Discover, `/explore`, in
 
 | Path | Role |
 |------|------|
-| `docker-compose.yml` | Start Neo4j + API + web (`docker compose up --build`) |
+| `docker-compose.yml` | Start Neo4j + API + web (`docker compose up --build`). **Web** runs `next dev` in the container because your repo is bind-mounted over `/app` (otherwise `next start` would miss `.next`). |
 | `.env` / `.env.example` | Passwords and optional API keys (copy example to `.env`) |
 | `db/schema.cypher` | Run once in Neo4j Browser to create constraints/indexes |
 | `db/dedup_openalex.cypher` | Optional helper script to spot papers sharing the same `openalex_id` (manual merge in Cypher) |

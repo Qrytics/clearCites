@@ -49,6 +49,9 @@ services:
     container_name: clearcites-web
     environment:
       NEXT_PUBLIC_API_URL: "http://localhost:8000"
+    # Source is bind-mounted below, so the image's production `.next` is hidden.
+    # Use the dev server in Compose; use `npm run build && npm start` without the mount for a prod-style run.
+    command: ["npm", "run", "dev:docker"]
     ports:
       - "3000:3000"
     depends_on:

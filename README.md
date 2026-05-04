@@ -251,6 +251,7 @@ curl -s "http://localhost:8000/graph?doi=10.1038%2Fnature14539&depth=2&expand=ci
 | Empty **`GET /search`** or empty graph on **/explore** | Data must exist in Neo4j: use **/discover → Ingest & visualize**, or **`clearcites-ingest`**, then reload. |
 | OpenAlex / **Discover** errors (429, 502, timeouts) | Set **`OPENALEX_MAILTO`** in `.env`; optional **`OPENALEX_MAX_RETRIES`** / **`OPENALEX_RETRY_BACKOFF_SEC`**; reduce **max works per mode**; read the JSON **`detail`** message from the API (also shown in the Discover UI). |
 | Web cannot reach API from the browser | **`NEXT_PUBLIC_API_URL=http://localhost:8000`** in `.env` when using `http://localhost:3000`. Custom hosts need CORS updates in `services/graph_api/main.py`. |
+| **`localhost:3000` won’t load** or `clearcites-web` exits immediately | With Docker, the **`web`** service must not run plain `next start` while `./web` is bind-mounted (there is no `.next` on the host). Compose should use **`npm run dev:docker`** (see `scholargraph/docker-compose.yml`). Run `docker compose up --build` again from `scholargraph/`. |
 
 ---
 
