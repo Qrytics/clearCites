@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./discover.css";
 
 const GraphCanvas = dynamic(() => import("@/components/GraphCanvas"), {
@@ -29,6 +29,21 @@ function invertedIndexToText(inv: Record<string, number[]> | undefined): string 
     }
   }
   return words.filter(Boolean).join(" ");
+}
+
+function parseApiError(status: number, statusText: string, bodyText: string): string {
+  if (!bodyText.trim()) return `${status} ${statusText}`;
+  try {
+    const j = JSON.parse(bodyText) as { detail?: string | { msg?: string }[] };
+    if (typeof j.detail === "string") return j.detail;
+    if (Array.isArray(j.detail)) {
+      const parts = j.detail.map((d) => (typeof d === "object" && d && "msg" in d ? String(d.msg) : "")).filter(Boolean);
+      if (parts.length) return parts.join("; ");
+    }
+  } catch {
+    /* not JSON */
+  }
+  return bodyText.length > 400 ? `${bodyText.slice(0, 400)}…` : bodyText;
 }
 
 function buildSearchApiUrl(
@@ -78,6 +93,35 @@ export default function DiscoverPage() {
   const [sortDir, setSortDir] = useState("desc");
   const [perPage, setPerPage] = useState(25);
   const [page, setPage] = useState(1);
+
+  const workSortFields = useMemo(
+    () =>
+      [
+        { value: "relevance_score", label: "Relevance" },
+        { value: "cited_by_count", label: "Citations" },
+        { value: "publication_date", label: "Pub. date" },
+      ] as const,
+    []
+  );
+  const catalogSortFields = useMemo(
+    () =>
+      [
+        { value: "relevance_score", label: "Relevance" },
+        { value: "cited_by_count", label: "Citations" },
+        { value: "works_count", label: "Works count" },
+      ] as const,
+    []
+  );
+
+  useEffect(() => {
+    const allowed =
+      entity === "works"
+        ? workSortFields.map((x) => x.value)
+        : catalogSortFields.map((x) => x.value);
+    if (!allowed.includes(sortField as (typeof allowed)[number])) {
+      setSortField("relevance_score");
+    }
+  }, [entity, sortField, workSortFields, catalogSortFields]);
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<unknown[]>([]);
@@ -162,8 +206,14 @@ export default function DiscoverPage() {
           sortDir,
         });
         const res = await fetch(url);
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        const data = await res.json();
+        const bodyText = await res.text();
+        if (!res.ok) {
+          throw new Error(parseApiError(res.status, res.statusText, bodyText));
+        }
+        const data = JSON.parse(bodyText) as {
+          results?: unknown[];
+          meta?: { count?: number; page?: number; per_page?: number };
+        };
         setResults(data.results ?? []);
         setMeta(data.meta ?? {});
         setPage(nextPage);
@@ -216,11 +266,11 @@ export default function DiscoverPage() {
           limit_per_mode: limitPerMode,
         }),
       });
+      const bodyText = await res.text();
       if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || res.statusText);
+        throw new Error(parseApiError(res.status, res.statusText, bodyText));
       }
-      const data = await res.json();
+      const data = JSON.parse(bodyText) as { seed_canonical_id?: string; ingested_works?: number };
       setGraphSeed(data.seed_canonical_id as string);
       setIngestMsg(`Ingested ${data.ingested_works} works. Graph below.`);
     } catch (e) {
@@ -256,9 +306,9 @@ export default function DiscoverPage() {
               {(
                 [
                   ["works", "Works"],
-                  ["authors", "Authors"],
-                  ["institutions", "Inst."],
-                  ["sources", "Sources"],
+                  ["authors", "Authors (catalog)"],
+                  ["institutions", "Inst. (catalog)"],
+                  ["sources", "Sources (catalog)"],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -369,10 +419,11 @@ export default function DiscoverPage() {
             <div className="arx-panel-label">Sort</div>
             <div className="arx-sort-row">
               <select className="arx-filter-select" value={sortField} onChange={(e) => setSortField(e.target.value)}>
-                <option value="relevance_score">Relevance</option>
-                <option value="cited_by_count">Citations</option>
-                <option value="publication_date">Pub. date</option>
-                {entity !== "works" && <option value="works_count">Works count</option>}
+                {(entity === "works" ? workSortFields : catalogSortFields).map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
               </select>
               <select className="arx-filter-select" value={sortDir} onChange={(e) => setSortDir(e.target.value)}>
                 <option value="desc">Descending</option>

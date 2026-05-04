@@ -1,55 +1,13 @@
 """
 tests/test_graph_api.py
 Integration-light tests for the FastAPI graph_api using httpx TestClient.
-Neo4j calls are mocked so no running database is needed.
+Neo4j calls are mocked in ``conftest.py`` so no running database is needed.
 """
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
-import pytest
-from fastapi.testclient import TestClient
-
-
-# ---------------------------------------------------------------------------
-# Patch neo4j before importing the app
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(autouse=True)
-def mock_neo4j(monkeypatch):
-    """Replace neo4j.AsyncGraphDatabase.driver with a lightweight mock."""
-    mock_driver = MagicMock()
-
-    mock_session = AsyncMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=False)
-
-    mock_result = AsyncMock()
-
-    # Default behaviours – individual tests override as needed
-    mock_result.single = AsyncMock(return_value=None)
-    mock_result.data = AsyncMock(return_value=[])
-    mock_session.run = AsyncMock(return_value=mock_result)
-    mock_driver.session = MagicMock(return_value=mock_session)
-
-    monkeypatch.setenv("NEO4J_URI", "bolt://localhost:7687")
-    monkeypatch.setenv("NEO4J_USER", "neo4j")
-    monkeypatch.setenv("NEO4J_PASSWORD", "test")
-
-    with patch("neo4j.AsyncGraphDatabase.driver", return_value=mock_driver):
-        yield mock_session
-
-
-@pytest.fixture()
-def client():
-    from scholargraph.services.graph_api.main import app
-    return TestClient(app)
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 class TestGetPaper:
     def test_404_when_paper_not_found(self, client, mock_neo4j):
@@ -79,9 +37,9 @@ class TestGetPaper:
 
 class TestSearch:
     def test_search_returns_list(self, client, mock_neo4j):
-        mock_neo4j.run.return_value.data = AsyncMock(return_value=[
-            {"doi": "10.1/a", "title": "Alpha", "year": 2021, "impact_score": 0.5}
-        ])
+        mock_neo4j.run.return_value.data = AsyncMock(
+            return_value=[{"doi": "10.1/a", "title": "Alpha", "year": 2021, "impact_score": 0.5}]
+        )
         resp = client.get("/search?q=alpha")
         assert resp.status_code == 200
         results = resp.json()
@@ -117,3 +75,28 @@ class TestGraph:
         assert resp.status_code == 200
         data = resp.json()
         assert data == {"nodes": [], "edges": []}
+
+
+class TestAiMounted:
+    def test_ai_summary_accepts_json(self, client):
+        resp = client.post(
+            "/ai/summary",
+            json={"title": "Example", "abstract": "First sentence. Second sentence. Third sentence here."},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "summary" in data
+        assert isinstance(data["summary"], str)
+
+    def test_ai_relationship_accepts_json(self, client):
+        resp = client.post(
+            "/ai/relationship",
+            json={
+                "abstract_a": "Neural networks learn representations from labeled data.",
+                "abstract_b": "Deep learning models optimize loss on training examples.",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "relationship" in data
+        assert "correlation_value" in data

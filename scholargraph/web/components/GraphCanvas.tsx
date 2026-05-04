@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactFlow, {
   addEdge,
   Background,
@@ -7,12 +7,15 @@ import ReactFlow, {
   Edge,
   MiniMap,
   Node,
+  ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
 import PaperDetail from "./PaperDetail";
+import { layoutWithDagre } from "../lib/graphLayout";
 import { useGraphData } from "../hooks/useGraphData";
 
 interface PaperData {
@@ -102,18 +105,19 @@ function nodeStyle(data: Record<string, unknown> | undefined): React.CSSProperti
   };
 }
 
-const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2, expand }) => {
+const GraphCanvasInner: React.FC<Props> = ({ seedDoi, depth = 2, expand }) => {
   const { nodes: rawNodes, edges: rawEdges, loading, error } = useGraphData(seedDoi, depth, expand);
+  const { fitView } = useReactFlow();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<GraphNode["data"]>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedPaper, setSelectedPaper] = useState<PaperData | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
 
-  // Transform API nodes → React Flow nodes with custom styling
   useEffect(() => {
-    const rfNodes: Node[] = rawNodes.map((n) => ({
+    const styled: Node[] = rawNodes.map((n) => ({
       id: n.id,
-      position: { x: Math.random() * 600, y: Math.random() * 400 },
+      position: { x: 0, y: 0 },
       data: {
         ...n.data,
         label: n.label ?? n.id,
@@ -121,9 +125,18 @@ const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2, expand }) => {
       },
       style: nodeStyle(n.data as Record<string, unknown> | undefined),
     }));
-    setNodes(rfNodes);
+    const laidOut = layoutWithDagre(styled, rawEdges);
+    setNodes(laidOut);
     setEdges(rawEdges);
   }, [rawNodes, rawEdges, setNodes, setEdges]);
+
+  useEffect(() => {
+    if (!nodes.length) return;
+    const id = window.requestAnimationFrame(() => {
+      fitView({ padding: 0.18, maxZoom: 1.2, duration: 220 });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [nodes, fitView, seedDoi]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -135,6 +148,16 @@ const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2, expand }) => {
     if (d.kind && d.kind !== "paper") return;
     if (!d.doi) return;
     setSelectedPaper(d as PaperData);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      void el.requestFullscreen();
+    } else {
+      void document.exitFullscreen();
+    }
   }, []);
 
   if (loading) {
@@ -169,34 +192,65 @@ const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2, expand }) => {
     );
   }
 
+  const btnStyle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    padding: "4px 10px",
+    borderRadius: 6,
+    border: "1px solid #4f46e5",
+    background: "rgba(30, 27, 75, 0.85)",
+    color: "#c7d2fe",
+    cursor: "pointer",
+  };
+
   return (
     <div className="flex h-full w-full">
-      {/* Graph canvas */}
-      <div className="flex-1 h-full">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          fitView
+      <div ref={shellRef} className="flex flex-1 flex-col h-full min-h-0">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: 8,
+            padding: "6px 8px",
+            borderBottom: "1px solid rgba(79, 70, 229, 0.35)",
+            background: "rgba(15, 23, 42, 0.5)",
+          }}
         >
-          <Background />
-          <Controls />
-          <MiniMap />
-        </ReactFlow>
+          <button type="button" style={btnStyle} onClick={toggleFullscreen}>
+            Full screen
+          </button>
+        </div>
+        <div className="flex-1 h-full min-h-0">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            fitView={false}
+            minZoom={0.08}
+            maxZoom={1.6}
+          >
+            <Background />
+            <Controls />
+            <MiniMap />
+          </ReactFlow>
+        </div>
       </div>
 
-      {/* Detail sidebar */}
       {selectedPaper && (
-        <PaperDetail
-          paper={selectedPaper}
-          onClose={() => setSelectedPaper(null)}
-        />
+        <PaperDetail paper={selectedPaper} onClose={() => setSelectedPaper(null)} />
       )}
     </div>
   );
 };
+
+const GraphCanvas: React.FC<Props> = (props) => (
+  <ReactFlowProvider>
+    <GraphCanvasInner {...props} />
+  </ReactFlowProvider>
+);
 
 export default GraphCanvas;

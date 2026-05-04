@@ -2,6 +2,8 @@
 Thin async client for the OpenAlex API (https://api.openalex.org).
 
 Polite use: pass mailto= on every request (see https://docs.openalex.org/how-to-use/api).
+
+Retries (429 / 502 / 503) and backoff are handled in :mod:`openalex_http` (see ``OPENALEX_*`` env vars there).
 """
 
 from __future__ import annotations
@@ -13,6 +15,8 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
+
+from .openalex_http import openalex_get_json
 
 _BASE = "https://api.openalex.org"
 
@@ -110,9 +114,8 @@ class OpenAlexClient:
             params["sort"] = sort
 
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            r = await client.get(f"{_BASE}/works", params=self._params(params))
-            r.raise_for_status()
-            return r.json()
+            raw = await openalex_get_json(client, f"{_BASE}/works", self._params(params))
+            return raw or {}
 
     async def search_catalog(
         self,
@@ -135,20 +138,20 @@ class OpenAlexClient:
         if sort:
             params["sort"] = sort
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            r = await client.get(f"{_BASE}/{catalog}", params=self._params(params))
-            r.raise_for_status()
-            return r.json()
+            raw = await openalex_get_json(client, f"{_BASE}/{catalog}", self._params(params))
+            return raw or {}
 
     async def get_work(self, work_selector: str) -> dict[str, Any] | None:
         """GET /works/{id} — id can be W…, https://doi.org/…, or raw DOI."""
         wid = normalize_work_selector(work_selector)
         path = quote(wid, safe="") if wid.startswith("http") else wid
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            r = await client.get(f"{_BASE}/works/{path}", params=self._params())
-            if r.status_code == 404:
-                return None
-            r.raise_for_status()
-            return r.json()
+            return await openalex_get_json(
+                client,
+                f"{_BASE}/works/{path}",
+                self._params(),
+                allow_not_found=True,
+            )
 
     async def get_work_safe(self, work_selector: str) -> dict[str, Any] | None:
         try:
@@ -169,9 +172,8 @@ class OpenAlexClient:
         if cursor:
             params["cursor"] = cursor
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            r = await client.get(f"{_BASE}/works", params=self._params(params))
-            r.raise_for_status()
-            return r.json()
+            raw = await openalex_get_json(client, f"{_BASE}/works", self._params(params))
+            return raw or {}
 
     async def get_works_by_openalex_ids(self, short_ids: list[str]) -> list[dict[str, Any]]:
         """Batch-fetch full work objects (max ~50 ids per OpenAlex filter)."""
@@ -192,11 +194,11 @@ class OpenAlexClient:
                     await asyncio.sleep(0.12)
                 chunk = clean[i : i + 45]
                 filt = "openalex:" + "|".join(chunk)
-                r = await client.get(
+                blob = await openalex_get_json(
+                    client,
                     f"{_BASE}/works",
-                    params=self._params({"filter": filt, "per_page": 50}),
+                    self._params({"filter": filt, "per_page": 50}),
                 )
-                r.raise_for_status()
-                data = r.json().get("results") or []
+                data = (blob or {}).get("results") or []
                 out.extend(data)
         return out

@@ -1,7 +1,8 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+# `npm install` tolerates lockfile drift when new deps land before `package-lock.json` is refreshed locally.
+RUN npm install --no-audit --no-fund
 
 FROM node:20-alpine AS builder
 WORKDIR /app

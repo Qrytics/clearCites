@@ -27,6 +27,7 @@ Optional keys / email:
 - **`SEMANTIC_SCHOLAR_API_KEY`** — higher rate limits for `clearcites-ingest` (Semantic Scholar).
 - **`CROSSREF_MAILTO`** — [CrossRef polite pool](https://github.com/CrossRef/rest-api-doc#good-manners--more-reliable-service) for CrossRef ingest.
 - **`OPENALEX_MAILTO`** — [OpenAlex polite pool](https://docs.openalex.org/how-to-use/api) for **Discover** and `/openalex/*` (strongly recommended).
+- **`OPENALEX_MAX_RETRIES`**, **`OPENALEX_RETRY_BACKOFF_SEC`** — optional tuning for OpenAlex HTTP retries (defaults: `3` and `0.75`); see `scholargraph/.env.example`.
 
 ---
 
@@ -106,11 +107,11 @@ The **Discover** page (ARXTERM-inspired terminal UI) walks through the flow you 
 6. Tick neighborhood modes (**references / cited by / shared authors / OpenAlex concept cluster / related**), set **max works per mode**, then **Ingest & visualize**.  
    The API calls OpenAlex, upserts works into Neo4j via `push_paper`, then embeds the same React Flow graph as `/explore`.
 
-**Entity tabs** (Works / Authors / …) search the live OpenAlex catalog; **graph ingest is only available for Works** (authors and other entities are browse-only for now).
+**Entity tabs** — **Works** supports full Discover (search → ingest → graph). **Authors / Institutions / Sources** search the live OpenAlex catalog only (tabs are labeled “catalog” in the UI; no Neo4j ingest yet).
 
 **API** (also in Swagger under **openalex**):
 
-- `GET /openalex/search?q=…&entity=works&…` — proxy search with optional work filters (`year_from`, `year_to`, `work_type`, `min_citations`, `is_oa`, `has_abstract`, `sort_field`, `sort_dir`, `page`, `per_page`).
+- `GET /openalex/search?q=…&entity=works&…` — proxy search with optional work filters (`year_from`, `year_to`, `work_type`, `min_citations`, `is_oa`, `has_abstract`, `sort_field`, `sort_dir`, `page`, `per_page`). Sort fields are **whitelisted** per entity so OpenAlex does not return opaque `400` errors (works: `relevance_score`, `cited_by_count`, `publication_date`; other entities: `relevance_score`, `cited_by_count`, `works_count`).
 - `POST /openalex/explore` — JSON `{ "seed_work_id": "W…", "modes": ["citations_out",…], "limit_per_mode": 25 }` — fetch related works and merge into Neo4j; response includes `seed_canonical_id` for `GET /graph`.
 
 ---
@@ -189,7 +190,7 @@ curl -s "http://localhost:8000/papers/10.1038%2Fnature14539"
    - **Authors** — who wrote each paper in view.
    - **Co-authors** — other papers that share an author with your seed.
    - **Keywords** — `HAS_KEYWORD` links into keyword nodes.
-3. Click **Load graph**. Purple nodes are papers; orange are authors; teal are keywords. Click a **paper** to open the detail sidebar.
+3. Click **Load graph**. Purple nodes are papers; orange are authors; teal are keywords. Click a **paper** to open the detail sidebar. The canvas uses a **left-to-right Dagre layout** (deterministic per load) with **Fit view** after layout and an optional **Full screen** control in the graph toolbar.
 
 The page calls **`GET /graph`** with an `expand` query string. Example equivalent:
 
@@ -208,7 +209,7 @@ curl -s "http://localhost:8000/graph?doi=10.1038%2Fnature14539&depth=2&expand=ci
 | `dockerDesktopLinuxEngine` / cannot connect to Docker | Start **Docker Desktop** and wait until `docker version` shows **Server**. |
 | Neo4j password rejected | Use **`NEO4J_PASSWORD`** from `scholargraph/.env`. If you changed it after first run, old volumes may keep the old password — run `docker compose down -v` and start again (data loss). |
 | Empty **`GET /search`** or empty graph on **/explore** | Data must exist in Neo4j: use **/discover → Ingest & visualize**, or **`clearcites-ingest`**, then reload. |
-| OpenAlex / **Discover** errors (502, timeouts) | Set **`OPENALEX_MAILTO`** in `.env`, rebuild/restart compose; check OpenAlex status; reduce **max works per mode**. |
+| OpenAlex / **Discover** errors (429, 502, timeouts) | Set **`OPENALEX_MAILTO`** in `.env`; optional **`OPENALEX_MAX_RETRIES`** / **`OPENALEX_RETRY_BACKOFF_SEC`**; reduce **max works per mode**; read the JSON **`detail`** message from the API (also shown in the Discover UI). |
 | Web cannot reach API from the browser | **`NEXT_PUBLIC_API_URL=http://localhost:8000`** in `.env` when using `http://localhost:3000`. Custom hosts need CORS updates in `services/graph_api/main.py`. |
 
 ---
@@ -226,7 +227,9 @@ scholargraph/
 ├── web/app/
 │   ├── discover/           # OpenAlex terminal UI + ingest + embedded graph
 │   └── explore/            # Manual DOI + graph toggles
-├── db/schema.cypher
+├── db/
+│   ├── schema.cypher
+│   └── dedup_openalex.cypher   # optional: find shared openalex_id for manual merge
 ├── docker-compose.yml
 └── .env.example
 ```
@@ -254,7 +257,7 @@ More READMEs:
 | Database | Neo4j |
 | API | Python 3.11, FastAPI |
 | Web | Next.js, React Flow |
-| ML helpers | scikit-learn, numpy (see `ai_summarizer`) |
+| ML helpers | scikit-learn, numpy (`/ai/*`: extractive summary + TF-IDF relationship hint; no external LLM API) |
 | External data | Semantic Scholar, CrossRef, **OpenAlex** (Discover + `/openalex/*`) |
 
 ---
@@ -274,8 +277,8 @@ Interactive docs: **http://localhost:8000/docs** when the stack is running.
 | `POST` | `/openalex/explore` | Ingest seed + related works from OpenAlex into Neo4j |
 | `GET` | `/search?q=…` | Text search on stored title/abstract |
 | `GET` | `/search/by-keyword?keyword=…` | Papers linked to keyword nodes |
-| `POST` | `/ai/summary` | Plain-language summary (when wired) |
-| `POST` | `/ai/relationship` | Relationship hint between two abstracts (when wired) |
+| `POST` | `/ai/summary` | Extractive summary (TF-IDF sentence scoring on the abstract) |
+| `POST` | `/ai/relationship` | Heuristic relationship label + cosine similarity on two abstracts |
 
 ---
 
@@ -290,11 +293,24 @@ python -m pytest
 
 ---
 
+## Continuous integration
+
+GitHub Actions on **`main`** (see `.github/workflows/ci.yml`):
+
+- **`test`** — editable install + `pytest` (graph API with mocked Neo4j, parser, OpenAlex routes with mocked HTTP client).
+- **`docker-images`** — `docker compose build graph_api web` from `scholargraph/` so API and web Dockerfiles stay buildable on a clean Linux runner.
+
+---
+
 ## Neo4j schema (concepts)
 
 **Node labels:** `Paper`, `Author`, `Keyword`, `Funder`.
 
+**Paper properties:** the ingest path sets **`openalex_id`** when an OpenAlex work id is known (including DOI-keyed papers). `db/schema.cypher` defines **`paper_openalex_id_index`**. Older databases: re-run the new index line from the current schema file (safe `IF NOT EXISTS`).
+
 **Relationship types:** `WROTE`, `CITES`, `HAS_KEYWORD`, `FUNDED_BY`, and optional typed edges `VALIDATES`, `BUILDS_ON`, `CHALLENGES` when you add them via the API or pipeline.
+
+**Identity / deduplication:** one primary key per work — normalized DOI when available from OpenAlex, otherwise `openalex:W…` (`canonical_paper_key_from_work` in `data_pipeline/parser.py`). The same real-world paper can still appear twice if ingested under different keys; **`scholargraph/db/dedup_openalex.cypher`** lists collisions by shared `openalex_id`. Merging nodes (moving edges, deleting extras) remains a manual Cypher step.
 
 ---
 
@@ -302,11 +318,11 @@ python -m pytest
 
 These are **known** gaps, not setup mistakes:
 
-- **Discover graph ingest** is only for **Works**; Authors / Institutions / Sources tabs are search-only.
-- **Paper keys** are DOI when present, else `openalex:W…`; mixing stub vs full ingest for the same real-world paper can theoretically duplicate until everything is merged.
-- **Layout**: React Flow positions are **random** per load; no force-directed persistence yet.
-- **Tests**: automated tests cover the mocked graph API; **OpenAlex routes** are not heavily integration-tested against the live API.
-- **`/ai/*`** endpoints may still be partial depending on how `ai_summarizer` is mounted in your branch.
+- **Discover graph ingest** is only for **Works**; other entity tabs are OpenAlex catalog search only.
+- **GitHub Pages** ships a **static** site only — no bundled Neo4j/API (see the note at the top of this README).
+- **Graph layout** uses a deterministic **Dagre** layer in the web app (not physics-based persistence in Neo4j).
+- **Tests** mock Neo4j and OpenAlex HTTP; they do not hit the live `api.openalex.org`.
+- **`plain_summary` in the web UI** is only shown when the API provides it; default graph payloads may omit it.
 
 ---
 

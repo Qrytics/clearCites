@@ -1,5 +1,5 @@
 // ============================================================
-// ScholarGraph – Neo4j Graph Schema
+// clearCites – Neo4j graph schema
 // ============================================================
 // Run these statements once against a fresh Neo4j instance.
 
@@ -27,6 +27,9 @@ CREATE INDEX paper_year_index IF NOT EXISTS
 
 CREATE INDEX author_name_index IF NOT EXISTS
   FOR (a:Author) ON (a.name);
+
+CREATE INDEX paper_openalex_id_index IF NOT EXISTS
+  FOR (p:Paper) ON (p.openalex_id);
 
 // ============================================================
 // Node Definitions (illustrative CREATE examples)

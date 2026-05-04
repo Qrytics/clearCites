@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "ScholarGraph – clearCites",
+  title: "clearCites — citation graph",
   description:
-    "Mapping the DNA of Human Knowledge – a research paper visualization engine.",
+    "Neo4j-backed papers and citations, OpenAlex Discover (works ingest), React Flow + Dagre explorer, FastAPI (search, graph, optional /ai extractive helpers).",
 };
 
 export default function RootLayout({

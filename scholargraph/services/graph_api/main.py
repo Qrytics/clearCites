@@ -12,7 +12,8 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import AsyncGraphDatabase
 
-from services.graph_api import openalex_routes
+from ..ai_summarizer.router import router as ai_router
+from . import openalex_routes
 
 app = FastAPI(
     title="clearCites API",
@@ -32,6 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(openalex_routes.router)
+app.include_router(ai_router)
 
 
 def _driver():

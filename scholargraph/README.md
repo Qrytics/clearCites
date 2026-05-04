@@ -1,6 +1,6 @@
-# ScholarGraph (`scholargraph/`)
+# clearCites stack (`scholargraph/`)
 
-This folder is the **runnable stack** for clearCites: Neo4j, the graph API, the Next.js web app, and the data pipeline.
+This folder is the **runnable stack**: Neo4j, the graph API, the Next.js web app (home, Discover, Explore), and the data pipeline.
 
 The **full walkthrough** (dependencies, Docker, schema, Discover, `/explore`, ingest) is in the repository root: **[../README.md](../README.md)**.
 
@@ -13,8 +13,9 @@ The **full walkthrough** (dependencies, Docker, schema, Discover, `/explore`, in
 | `docker-compose.yml` | Start Neo4j + API + web (`docker compose up --build`) |
 | `.env` / `.env.example` | Passwords and optional API keys (copy example to `.env`) |
 | `db/schema.cypher` | Run once in Neo4j Browser to create constraints/indexes |
-| `web/` | Next.js app — home page and **`/explore`** graph UI |
-| `services/graph_api/` | FastAPI — `/search`, `/graph`, `/papers/...` |
+| `db/dedup_openalex.cypher` | Optional helper script to spot papers sharing the same `openalex_id` (manual merge in Cypher) |
+| `web/` | Next.js app — home, **`/discover`** (OpenAlex), **`/explore`** (DOI graph) |
+| `services/graph_api/` | FastAPI — `/search`, `/graph`, `/papers/...`, `/openalex/*`, `/ai/*` |
 | `data_pipeline/` | `clearcites-ingest` uses these modules to write to Neo4j |
 | `tools/ingest_doi.py` | Source for the `clearcites-ingest` CLI (installed from repo root) |
 

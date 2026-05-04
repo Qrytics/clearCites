@@ -22,11 +22,14 @@ export default function Home() {
           marginBottom: "0.5rem",
         }}
       >
-        🕸️ ScholarGraph
+        🕸️ clearCites
       </h1>
-      <p style={{ fontSize: "1.25rem", color: "#94a3b8", maxWidth: 560, marginBottom: "2rem" }}>
-        Mapping the DNA of Human Knowledge — an open-source visual discovery
-        tool that turns academic research into an interactive, navigable map.
+      <p style={{ fontSize: "1.25rem", color: "#94a3b8", maxWidth: 620, marginBottom: "2rem" }}>
+        Open-source citation graph in Neo4j: papers, citations, authors, and keywords on a React Flow
+        canvas (Dagre layout). Discover searches OpenAlex and ingests work neighborhoods; Explore loads
+        by DOI. Funding and abstracts show in the paper sidebar when the API has them. Optional{" "}
+        <code style={{ fontSize: "0.85em" }}>/ai/*</code> routes are extractive TF-IDF helpers—not an
+        LLM. Everything below needs Docker (Neo4j + FastAPI).
       </p>
 
       {/* Feature cards */}
@@ -43,23 +46,23 @@ export default function Home() {
         {[
           {
             icon: "🔗",
-            title: "Citation Graph",
-            desc: "Visualise how papers build on and validate each other through a dynamic node-edge canvas.",
+            title: "Citation graph",
+            desc: "Citation edges plus optional authors, co-authors, and keywords. Dagre layer layout, fit view after load, and a full-screen control on the toolbar.",
           },
           {
             icon: "💰",
-            title: "Follow the Money",
-            desc: "See which research is publicly funded (NIH, NSF, …) and trace taxpayer dollars to outcomes.",
+            title: "Funding metadata",
+            desc: "Funder names and funding fields in the paper detail panel when ingested (e.g. CrossRef). Neo4j stores Funder nodes—the canvas does not draw them as nodes.",
           },
           {
-            icon: "🤖",
-            title: "AI Summaries",
-            desc: "LLM-powered plain-English abstracts and relationship scoring for non-specialists.",
+            icon: "🛰️",
+            title: "OpenAlex Discover",
+            desc: "Works tab: search, pick a seed, choose neighborhoods (references, cited-by, related, …), ingest into Neo4j, graph on the same page. Authors / institutions / sources tabs are catalog search only (no graph ingest yet).",
           },
           {
             icon: "🔍",
-            title: "Keyword Discovery",
-            desc: "Search papers by keyword, author, or DOI and explore their full citation pedigree.",
+            title: "Search & ingest",
+            desc: "Neo4j GET /search and /search/by-keyword for what is already in the DB; clearcites-ingest (Semantic Scholar or CrossRef) for DOI-first pipelines.",
           },
         ].map(({ icon, title, desc }) => (
           <div
@@ -126,7 +129,7 @@ export default function Home() {
           View on GitHub
         </a>
         <a
-          href="https://github.com/Qrytics/clearCites#-quick-start"
+          href="https://github.com/Qrytics/clearCites#2-start-the-stack-docker"
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -144,8 +147,11 @@ export default function Home() {
         </a>
       </div>
 
-      <footer style={{ marginTop: "3rem", fontSize: "0.8rem", color: "#475569" }}>
-        clearCites · open-source · MIT License
+      <footer style={{ marginTop: "3rem", fontSize: "0.8rem", color: "#475569", maxWidth: 520, lineHeight: 1.5 }}>
+        This GitHub Pages build is a static export from Actions: navigation works, but Discover/Explore
+        need <code style={{ fontSize: "0.75rem" }}>docker compose up</code> in{" "}
+        <code style={{ fontSize: "0.75rem" }}>scholargraph/</code> (Neo4j schema + API). See the repo
+        README for retries, CI, and dedup notes. MIT License.
       </footer>
     </main>
   );

@@ -34,14 +34,17 @@ ON CREATE SET
     p.funding_source = $funding_source,
     p.cited_by_count = $cited_by_count,
     p.impact_score   = 0.0,
-    p.created_at     = datetime()
+    p.created_at     = datetime(),
+    p.openalex_id    = $openalex_id
 ON MATCH SET
     p.cited_by_count = $cited_by_count,
     p.title = CASE WHEN $title IS NOT NULL AND trim($title) <> '' THEN $title ELSE p.title END,
     p.abstract = CASE WHEN $abstract IS NOT NULL AND trim($abstract) <> '' THEN $abstract ELSE p.abstract END,
     p.year = coalesce($year, p.year),
     p.funding_source = CASE WHEN $funding_source IS NOT NULL AND trim($funding_source) <> ''
-      THEN $funding_source ELSE p.funding_source END
+      THEN $funding_source ELSE p.funding_source END,
+    p.openalex_id = CASE WHEN $openalex_id IS NOT NULL AND trim($openalex_id) <> ''
+      THEN $openalex_id ELSE p.openalex_id END
 """
 
 _MERGE_AUTHOR = """
@@ -97,6 +100,11 @@ async def push_paper(paper: PaperObject, driver: AsyncDriver | None = None) -> N
             funding_source = (
                 ", ".join(paper.funding_sources) if paper.funding_sources else ""
             )
+            oa_id = (paper.external_ids or {}).get("openalex") or ""
+            oa_id = str(oa_id).strip() if oa_id else ""
+            if not oa_id and str(paper.doi).lower().startswith("openalex:w"):
+                oa_id = str(paper.doi).split(":", 1)[-1].strip()
+
             await session.run(
                 _MERGE_PAPER,
                 doi=paper.doi,
@@ -105,6 +113,7 @@ async def push_paper(paper: PaperObject, driver: AsyncDriver | None = None) -> N
                 abstract=paper.abstract,
                 funding_source=funding_source,
                 cited_by_count=paper.cited_by_count,
+                openalex_id=oa_id or None,
             )
 
             # Authors

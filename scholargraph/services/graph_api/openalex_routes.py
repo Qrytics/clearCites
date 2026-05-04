@@ -6,14 +6,19 @@ from __future__ import annotations
 
 import os
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 try:
     from scholargraph.data_pipeline.api_clients.openalex import OpenAlexClient
+    from scholargraph.data_pipeline.api_clients.openalex_http import openalex_http_detail
+    from scholargraph.data_pipeline.openalex_sort import openalex_sort_param
     from scholargraph.data_pipeline.openalex_subgraph import ingest_openalex_explore
 except ImportError:  # Docker layout: /app/data_pipeline
     from data_pipeline.api_clients.openalex import OpenAlexClient
+    from data_pipeline.api_clients.openalex_http import openalex_http_detail
+    from data_pipeline.openalex_sort import openalex_sort_param
     from data_pipeline.openalex_subgraph import ingest_openalex_explore
 
 router = APIRouter(prefix="/openalex", tags=["openalex"])
@@ -21,6 +26,17 @@ router = APIRouter(prefix="/openalex", tags=["openalex"])
 
 def _mailto() -> str:
     return (os.getenv("OPENALEX_MAILTO") or os.getenv("CROSSREF_MAILTO") or "").strip()
+
+
+def _http_status_from_openalex(exc: httpx.HTTPStatusError) -> int:
+    sc = exc.response.status_code
+    if sc in (400, 422):
+        return 400
+    if sc == 404:
+        return 404
+    if sc == 429:
+        return 429
+    return 502
 
 
 @router.get("/search")
@@ -47,14 +63,11 @@ async def openalex_search(
     Returns raw ``results`` objects so the ARXTERM-style UI can render rich cards.
     """
     client = OpenAlexClient(mailto=_mailto())
+    has_q = bool(q.strip())
+    sort_param = openalex_sort_param(entity, sort_field, sort_dir, has_search_query=has_q)
 
-    sort_param: str | None = None
-    if entity == "works":
-        if sort_field == "relevance_score" and q.strip():
-            sort_param = f"relevance_score:{sort_dir}"
-        elif sort_field != "relevance_score":
-            sort_param = f"{sort_field}:{sort_dir}"
-        try:
+    try:
+        if entity == "works":
             raw = await client.search_works_filtered(
                 q,
                 per_page=per_page,
@@ -67,17 +80,17 @@ async def openalex_search(
                 has_abstract=has_abstract if has_abstract else None,
                 sort=sort_param,
             )
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=f"OpenAlex error: {exc}") from exc
-    else:
-        if sort_field != "relevance_score":
-            sort_param = f"{sort_field}:{sort_dir}"
-        try:
+        else:
             raw = await client.search_catalog(
                 entity, q, per_page=per_page, page=page, sort=sort_param
             )
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=f"OpenAlex error: {exc}") from exc
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=_http_status_from_openalex(exc),
+            detail=openalex_http_detail(exc),
+        ) from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=503, detail=openalex_http_detail(exc)) from exc
 
     meta = raw.get("meta") or {}
     return {
@@ -119,6 +132,13 @@ async def openalex_explore(body: ExploreRequest):
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=_http_status_from_openalex(exc),
+            detail=openalex_http_detail(exc),
+        ) from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=503, detail=openalex_http_detail(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Ingest failed: {exc}") from exc
 
