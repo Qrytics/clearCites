@@ -1,5 +1,5 @@
 /* clearCites Discover (OpenAlex terminal) — scoped (ARXTERM-inspired) */
-@import url("https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700&family=DM+Sans:wght@300;400;500&display=swap");
+/* Fonts: next/font in app/discover/layout.tsx sets --font-mono, --font-sans, --font-serif */
 
 .arxterm {
   --bg: #0c0c0b;
@@ -15,9 +15,9 @@
   --blue: #4a8fc4;
   --green: #5aab7f;
   --red: #c45a5a;
-  --mono: "Courier Prime", monospace;
-  --serif: "Fraunces", Georgia, serif;
-  --sans: "DM Sans", sans-serif;
+  --mono: var(--font-mono), monospace;
+  --serif: var(--font-serif), Georgia, serif;
+  --sans: var(--font-sans), sans-serif;
 
   background: var(--bg);
   color: var(--cream);

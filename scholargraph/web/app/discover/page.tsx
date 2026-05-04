@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import "./discover.css";
 
 const GraphCanvas = dynamic(() => import("@/components/GraphCanvas"), {
   ssr: false,
