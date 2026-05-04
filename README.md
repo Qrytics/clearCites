@@ -68,17 +68,132 @@ Leave this terminal open while you work. Use a **second** terminal for ingest an
    - **Username:** `neo4j`
    - **Password:** the value of **`NEO4J_PASSWORD`** in your `scholargraph/.env` (default in `.env.example`: `scholargraph`).
 
-2. Paste the **contents** of `scholargraph/db/schema.cypher` into the **query editor** (the large input at the top), then run it (play button or Ctrl+Enter).  
-   Do **not** type the filename alone; Neo4j expects Cypher text.
+2. Open the **query editor** (large input at the top). Paste **either** the full script below **or** the same text from `scholargraph/db/schema.cypher` in the repo (they should match). Run with the play button or Ctrl+Enter.  
+   Only the `CREATE CONSTRAINT` / `CREATE INDEX` lines execute; the rest are `//` comments (documentation).
 
-3. **Optional — reset the DB** (wipes all graph data and volumes):
+```cypher
+// ============================================================
+// clearCites – Neo4j graph schema
+// ============================================================
+// Run these statements once against a fresh Neo4j instance.
+
+// ------ Constraints (ensure uniqueness & fast look-ups) ------
+
+CREATE CONSTRAINT paper_doi_unique IF NOT EXISTS
+  FOR (p:Paper) REQUIRE p.doi IS UNIQUE;
+
+CREATE CONSTRAINT author_orcid_unique IF NOT EXISTS
+  FOR (a:Author) REQUIRE a.orcid IS UNIQUE;
+
+CREATE CONSTRAINT keyword_text_unique IF NOT EXISTS
+  FOR (k:Keyword) REQUIRE k.text IS UNIQUE;
+
+CREATE CONSTRAINT funder_name_unique IF NOT EXISTS
+  FOR (f:Funder) REQUIRE f.name IS UNIQUE;
+
+// ------ Indexes for common search patterns ------
+
+CREATE INDEX paper_title_index IF NOT EXISTS
+  FOR (p:Paper) ON (p.title);
+
+CREATE INDEX paper_year_index IF NOT EXISTS
+  FOR (p:Paper) ON (p.year);
+
+CREATE INDEX author_name_index IF NOT EXISTS
+  FOR (a:Author) ON (a.name);
+
+CREATE INDEX paper_openalex_id_index IF NOT EXISTS
+  FOR (p:Paper) ON (p.openalex_id);
+
+// ============================================================
+// Node Definitions (illustrative CREATE examples)
+// ============================================================
+
+// Paper node
+// MERGE (p:Paper {doi: $doi})
+//   ON CREATE SET
+//     p.title          = $title,
+//     p.year           = $year,
+//     p.abstract       = $abstract,
+//     p.plain_summary  = $plain_summary,   -- AI-generated 3-sentence summary
+//     p.funding_source = $funding_source,  -- e.g. "NIH", "NSF"
+//     p.cited_by_count = $cited_by_count,
+//     p.impact_score   = $impact_score,    -- AI-derived 0-1 correlation value
+//     p.created_at     = datetime();
+
+// Author node
+// MERGE (a:Author {orcid: $orcid})
+//   ON CREATE SET
+//     a.name       = $name,
+//     a.created_at = datetime();
+
+// Keyword node
+// MERGE (k:Keyword {text: $text});
+
+// Funder node
+// MERGE (f:Funder {name: $name});
+
+// ============================================================
+// Relationship Definitions
+// ============================================================
+
+// (Author)-[:WROTE]->(Paper)
+// MATCH (a:Author {orcid: $orcid}), (p:Paper {doi: $doi})
+// MERGE (a)-[:WROTE]->(p);
+
+// (Paper)-[:CITES]->(Paper)
+// MATCH (src:Paper {doi: $src_doi}), (tgt:Paper {doi: $tgt_doi})
+// MERGE (src)-[:CITES]->(tgt);
+
+// (Paper)-[:VALIDATES]->(Paper)
+//   Properties: correlation_value (0–1), evaluated_by (model name)
+// MATCH (src:Paper {doi: $src_doi}), (tgt:Paper {doi: $tgt_doi})
+// MERGE (src)-[r:VALIDATES]->(tgt)
+//   ON CREATE SET r.correlation_value = $correlation_value,
+//                 r.evaluated_by      = $evaluated_by;
+
+// (Paper)-[:BUILDS_ON]->(Paper)
+// MATCH (src:Paper {doi: $src_doi}), (tgt:Paper {doi: $tgt_doi})
+// MERGE (src)-[:BUILDS_ON]->(tgt);
+
+// (Paper)-[:CHALLENGES]->(Paper)
+// MATCH (src:Paper {doi: $src_doi}), (tgt:Paper {doi: $tgt_doi})
+// MERGE (src)-[:CHALLENGES]->(tgt);
+
+// (Paper)-[:HAS_KEYWORD]->(Keyword)
+// MATCH (p:Paper {doi: $doi}), (k:Keyword {text: $text})
+// MERGE (p)-[:HAS_KEYWORD]->(k);
+
+// (Paper)-[:FUNDED_BY]->(Funder)
+// MATCH (p:Paper {doi: $doi}), (f:Funder {name: $name})
+// MERGE (p)-[:FUNDED_BY]->(f);
+```
+
+3. **Optional — find papers sharing the same OpenAlex id** (different `doi` keys; review before any manual merge). Same query as `scholargraph/db/dedup_openalex.cypher`:
+
+```cypher
+// Optional: find Paper nodes that share the same OpenAlex work id but
+// different `doi` keys (e.g. one row keyed as 10.x/... and another as openalex:W...).
+//
+// Ingest sets `p.openalex_id` on upserts so you can spot collisions.
+// Merging nodes is graph-specific (re-point CITES/WROTE/etc.); review before destructive writes.
+
+MATCH (p:Paper)
+WHERE p.openalex_id IS NOT NULL AND trim(p.openalex_id) <> ""
+WITH p.openalex_id AS oa, collect(p.doi) AS dois, count(*) AS n
+WHERE n > 1
+RETURN oa, n, dois
+ORDER BY n DESC;
+```
+
+4. **Optional — reset the DB** (wipes all graph data and volumes):
 
    ```bash
    docker compose down -v
    docker compose up --build
    ```
 
-   Then sign in again and re-run `schema.cypher`.
+   Then sign in again and **re-run step 2** (constraints + indexes).
 
 ---
 
