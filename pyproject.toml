@@ -30,6 +30,9 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
+[project.scripts]
+clearcites-ingest = "scholargraph.tools.ingest_doi:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["scholargraph*"]
