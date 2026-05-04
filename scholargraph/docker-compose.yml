@@ -46,12 +46,17 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+      # The runner stage sets NODE_ENV=production, which makes `next dev` skip CSS loaders
+      # and produce "Module parse failed" errors on global stylesheets. Build the deps stage instead
+      # (node_modules pre-installed, no NODE_ENV override) and run the dev server on top of it.
+      target: deps
     container_name: clearcites-web
     environment:
+      NODE_ENV: "development"
       NEXT_PUBLIC_API_URL: "http://localhost:8000"
       NEXT_PUBLIC_BASE_PATH: ""
-    # Source is bind-mounted below, so the image's production `.next` is hidden.
-    # Use the dev server in Compose; use `npm run build && npm start` without the mount for a prod-style run.
+    # Source is bind-mounted below, so any `.next` baked into the image would be hidden anyway.
+    # Use the dev server in Compose; for a prod-style run, drop the bind mount and target the runner stage.
     command: ["npm", "run", "dev:docker"]
     ports:
       - "3000:3000"

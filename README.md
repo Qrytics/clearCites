@@ -99,11 +99,14 @@ This matters if you change the frontend or hit odd Next.js errors.
 
 | Mechanism | Why it exists |
 |-------------|----------------|
+| **`build.target: deps`** (Compose) | The Dockerfile’s `runner` stage sets **`NODE_ENV=production`**, which makes **`next dev`** skip its CSS loader chain and you see **`Module parse failed`** on `.css`. Compose targets the **`deps`** stage (just `node_modules`) so the dev server can apply normal loaders. |
+| **`NODE_ENV=development`** (Compose) | Belt + suspenders for the same problem—**`next dev`** must run with the development env, regardless of base image defaults. |
 | **`./web:/app` bind mount** | Your edited files under **`scholargraph/web/`** show up in the container immediately. |
 | **`npm run dev:docker`** (see `docker-compose.yml`) | A production **`next start`** would need a **`.next`** build inside `/app`, but the bind mount hides the image’s build. The dev server compiles on demand instead. |
 | **Named volume `clearcites_web_next` → `/app/.next`** | Next’s cache and dev output live **outside** the bind mount. Without this, a **`web/.next`** folder on your host (empty or stale) could break the app with missing **`required-server-files.json`** or 500s. |
 | **`NEXT_PUBLIC_BASE_PATH=""` in Compose** | Serves the app at **`/`** (not under **`/clearCites`**). GitHub Pages still uses **`/clearCites`** via CI only. |
-| **Discover global CSS** | Next.js allows **global** stylesheets only from **`web/app/layout.tsx`**. Discover styles live in **`web/app/discover/discover.css`** and are imported there. If you add more global CSS, import it from the **root** layout, not from nested `app/.../layout.tsx`. |
+| **Discover global CSS** | Import global styles only from **`web/app/layout.tsx`** (Discover uses **`./discover/discover.css`**). Nested layouts must not import global `.css` files. |
+| **`output: "export"`** | Static export is **off** during **`next dev`** (Docker and local). It is turned on **only** when **`NEXT_STATIC_EXPORT=true`** (GitHub Pages sets this in **`.github/workflows/pages.yml`**). Leaving export always on breaks the dev server’s CSS pipeline (“Module parse failed” on `.css`). |
 
 **If you need a clean Next cache:** `docker compose down` then remove the volume explicitly, e.g. `docker volume rm scholargraph_clearcites_web_next` (prefix may match your project folder name), then **`docker compose up --build`**. Optionally delete **`scholargraph/web/.next`** on the host so nothing stale shadows the mount (Compose’s volume normally overrides that path in the container anyway).
 
@@ -302,7 +305,7 @@ curl -s "http://localhost:8000/graph?doi=10.1038%2Fnature14539&depth=2&expand=ci
 | Web cannot reach API from the browser | **`NEXT_PUBLIC_API_URL=http://localhost:8000`** in `.env` when using `http://localhost:3000`. Custom hosts need CORS updates in `services/graph_api/main.py`. |
 | **`localhost:3000` won’t load** or `clearcites-web` exits immediately | With Docker, the **`web`** service must not run plain `next start` while `./web` is bind-mounted (there is no `.next` on the host). Compose should use **`npm run dev:docker`** (see `scholargraph/docker-compose.yml`). Run `docker compose up --build` again from `scholargraph/`. |
 | **Next.js shows 404** for `/` or `/discover` at port 3000 | Local dev uses **`NEXT_PUBLIC_BASE_PATH=""`** (root). If you still see 404s, ensure you are not using an old image: rebuild the **web** service. The GitHub Pages site lives under **`/clearCites`** only in CI (`pages.yml` sets that env). |
-| **500 on `/discover`** or logs like **`Module parse failed`** on **`discover.css`** | Global CSS must be imported only from **`web/app/layout.tsx`** (see **§2.1**). Nested layouts must not import global `.css` files. |
+| **500 on `/discover`** or **`Module parse failed`** on **`discover.css`** | The dev server is running with **`NODE_ENV=production`** (warning: *“non-standard NODE_ENV value”*). Ensure **`docker-compose.yml`** has **`build.target: deps`** **and** **`NODE_ENV=development`** for the **web** service (see **§2.1**), then **`docker compose up --build`** so the right image is rebuilt. Also keep global CSS imports inside **`web/app/layout.tsx`** only, and leave **`output: "export"`** gated on **`NEXT_STATIC_EXPORT`**. |
 | **`ENOENT` … `required-server-files.json`** under **`clearcites-web`** | Usually a broken or host-shadowed **`.next`**. Ensure **`docker-compose.yml`** still mounts the **`clearcites_web_next`** volume on **`/app/.next`**, then **`docker compose down`**, remove that Docker volume if needed, and **`docker compose up --build`**. Delete **`scholargraph/web/.next`** on the host if it exists. |
 
 ---

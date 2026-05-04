@@ -59,5 +59,5 @@ See **[Troubleshooting](../README.md#9-troubleshooting)** in the main README (Do
 ## Web container (quick reference)
 
 - **Do not** switch the **web** service to **`next start`** while **`./web`** is bind-mounted unless you also remove the mount and ship a built **`.next`**—see root **§2.1**.
-- **Global CSS:** import only from **`web/app/layout.tsx`** (Discover styles: **`./discover/discover.css`**).
+- **Global CSS:** import only from **`web/app/layout.tsx`** (Discover styles: **`./discover/discover.css`**). **`output: "export"`** is for Pages CI only (**`NEXT_STATIC_EXPORT`**); do not enable it for local **`next dev`**.
 - **Reset Next cache in Docker:** `docker compose down`, then `docker volume rm <project>_clearcites_web_next` (volume name prefix matches the Compose project directory), then `docker compose up --build`.
