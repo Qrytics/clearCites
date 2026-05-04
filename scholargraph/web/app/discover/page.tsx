@@ -114,11 +114,11 @@ export default function DiscoverPage() {
   );
 
   useEffect(() => {
-    const allowed =
+    const allowed: readonly string[] =
       entity === "works"
         ? workSortFields.map((x) => x.value)
         : catalogSortFields.map((x) => x.value);
-    if (!allowed.includes(sortField as (typeof allowed)[number])) {
+    if (!allowed.includes(sortField)) {
       setSortField("relevance_score");
     }
   }, [entity, sortField, workSortFields, catalogSortFields]);
