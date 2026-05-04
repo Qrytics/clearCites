@@ -4,6 +4,13 @@
 
 clearCites maps research papers as a graph: **papers** as nodes, **citations**, **authors**, **keywords**, and **funders** as relationships. This README walks you from **installing dependencies** through **searching for a paper** and **visualizing everything related to it**.
 
+**First-time path**
+
+1. **§1** — Clone the repo, create `scholargraph/.env`, and complete **§1.3** (check every row; for Discover you need at least **`NEO4J_PASSWORD`** and **`OPENALEX_MAILTO`** as described there).
+2. **§2** — Start Docker Compose.
+3. **§3** — Log into Neo4j Browser and run the schema Cypher (**§3** steps **1** and **2** only).  
+   **§3** steps **3** and **4** (dedup query, full DB reset) are **optional** and are not part of a minimal first run.
+
 **Two paths**
 
 | Path | When to use |
@@ -22,24 +29,49 @@ clearCites maps research papers as a graph: **papers** as nodes, **citations**, 
 | **Python 3.11+** and **pip** | Ingest papers into Neo4j from your machine (`clearcites-ingest`), and run tests |
 | **Node.js 20+** (optional) | Only if you run the frontend with `npm run dev` *outside* Docker |
 
-Optional keys / email:
-
-- **`SEMANTIC_SCHOLAR_API_KEY`** — higher rate limits for `clearcites-ingest` (Semantic Scholar).
-- **`CROSSREF_MAILTO`** — [CrossRef polite pool](https://github.com/CrossRef/rest-api-doc#good-manners--more-reliable-service) for CrossRef ingest.
-- **`OPENALEX_MAILTO`** — [OpenAlex polite pool](https://docs.openalex.org/how-to-use/api) for **Discover** and `/openalex/*` (strongly recommended).
-- **`OPENALEX_MAX_RETRIES`**, **`OPENALEX_RETRY_BACKOFF_SEC`** — optional tuning for OpenAlex HTTP retries (defaults: `3` and `0.75`); see `scholargraph/.env.example`.
+All environment variables live in **`scholargraph/.env`**. The line-by-line checklist is in **§1.3** (not summarized here, so nothing is easy to miss).
 
 ---
 
 ## 1. Clone and configure
 
+### 1.1 Clone the repository
+
 ```bash
 git clone https://github.com/Qrytics/clearCites.git
 cd clearCites/scholargraph
+```
+
+Stay in **`clearCites/scholargraph`** for **§1.2**, **§2**, and **§3** (that directory contains `docker-compose.yml` and `.env`).
+
+### 1.2 Create `.env` from the example
+
+```bash
 cp .env.example .env
 ```
 
-Edit `.env` (see keys above). Required for Neo4j: **`NEO4J_PASSWORD`** (default in `.env.example`: `scholargraph`). Compose passes **`OPENALEX_MAILTO`** and **`CROSSREF_MAILTO`** into the **graph_api** container for OpenAlex and tooling.
+This creates **`scholargraph/.env`**. Open that file in a text editor before continuing.
+
+### 1.3 Edit `scholargraph/.env` — go through every row
+
+Work **top to bottom** so you do not skip a line. After any change to `.env`, restart the stack (**§2**) so containers pick up new values.
+
+| Order | Variable | Required? | What to put |
+|:-----:|----------|-----------|-------------|
+| 1 | **`NEO4J_PASSWORD`** | **Yes** | Pick a password. The **Neo4j** and **graph_api** services read this from `.env` when Compose starts. In **§3**, you sign into Neo4j Browser as user **`neo4j`** with **this same password**. |
+| 2 | **`NEO4J_USER`** | Usually leave default | Keep **`neo4j`** unless you know you changed the DB user. |
+| 3 | **`NEO4J_URI`** | **For CLI ingest on your host** | Use **`bolt://localhost:7687`** when Neo4j is running in Docker with port **7687** published (this repo’s default). That value is for **`clearcites-ingest`** and other tools on your machine. The **graph_api** container uses Compose’s own Bolt URL (`bolt://neo4j:7687`); you do not set that inside `.env` for the API. |
+| 4 | **`OPENALEX_MAILTO`** | **Yes if you use Discover or `/openalex/*`** | Set to a **real email** you control (e.g. `you@university.edu`). OpenAlex uses it for the [polite pool](https://docs.openalex.org/how-to-use/api). If this is empty **and** `CROSSREF_MAILTO` is empty, Discover often fails with HTTP **429**. You can skip this only if you will **not** use Discover/OpenAlex (e.g. Explore-only with data already in Neo4j). |
+| 5 | **`CROSSREF_MAILTO`** | Optional | Use for [CrossRef polite pool](https://github.com/CrossRef/rest-api-doc#good-manners--more-reliable-service) when running **`clearcites-ingest --source crossref`**. The API also uses it as a **fallback** mailto for OpenAlex when `OPENALEX_MAILTO` is unset. |
+| 6 | **`SEMANTIC_SCHOLAR_API_KEY`** | Optional | Leave empty for anonymous Semantic Scholar; set a key for higher rate limits on **`clearcites-ingest`** (Semantic Scholar source). |
+| 7 | **`NEXT_PUBLIC_API_URL`** | **Yes if you run Next.js on the host** | Example: **`http://localhost:8000`**. With **this repo’s `docker compose`**, the **web** service is already given that URL in `docker-compose.yml`, so local Docker browsing works even if you do not customize this line—set it anyway if you later run **`npm run dev`** outside Docker. |
+| 8 | **`OPENALEX_MAX_RETRIES`**, **`OPENALEX_RETRY_BACKOFF_SEC`** | Optional | Uncomment in `.env.example` to tune retries. The **default** `docker-compose.yml` does **not** pass these into **graph_api**, so the running API uses code defaults (**`3`** retries, **`0.75`** s backoff) unless you add the variables to **`graph_api.environment`** in Compose or run the API outside Docker. |
+
+**Compose note:** **`OPENALEX_MAILTO`** and **`CROSSREF_MAILTO`** from your `.env` are injected into the **graph_api** container automatically (`docker-compose.yml`). **`SEMANTIC_SCHOLAR_API_KEY`** is as well (for any server-side use).
+
+**Password caveat:** If you change **`NEO4J_PASSWORD`** after Neo4j has already been created, the old password may still live in the Docker volume. Use **`docker compose down -v`** (see **§3.4**) only if you intend to wipe data and start fresh.
+
+When **§1.3** is done, continue to **§2**.
 
 ---
 
@@ -63,6 +95,8 @@ Leave this terminal open while you work. Use a **second** terminal for ingest an
 ---
 
 ## 3. Initialize Neo4j (one time per empty database)
+
+**Required:** steps **1** and **2** below. **Optional:** steps **3** (dedup) and **4** (wipe volumes).
 
 1. Open **http://localhost:7474** and sign in:
    - **Username:** `neo4j`
@@ -139,8 +173,8 @@ This installs the **`clearcites`** package and the **`clearcites-ingest`** comma
 
 The **Discover** page (ARXTERM-inspired terminal UI) walks through the flow you described: search OpenAlex, pick a work, choose what kinds of related papers to pull, then **ingest and visualize** in one place.
 
-1. Complete steps **1–3** above (Docker up, Neo4j schema applied).
-2. Set **`OPENALEX_MAILTO`** in `scholargraph/.env` (replace "your@email.com" with a valid email).
+1. Complete **§2** (Docker up) and **§3** steps **1** and **2** (Neo4j login + schema Cypher).
+2. Confirm **`OPENALEX_MAILTO`** is set as in **§1.3** (or rely on **`CROSSREF_MAILTO`** as the API’s fallback mailto). If you just edited `.env`, restart Compose (**§2**) before using Discover.
 3. Open **http://localhost:3000/discover**.
 4. Enter a query, optional filters (year, type, OA, …), click **Run query**.
 5. Click a **paper card** to select it (highlighted border).
@@ -252,6 +286,7 @@ curl -s "http://localhost:8000/graph?doi=10.1038%2Fnature14539&depth=2&expand=ci
 | OpenAlex / **Discover** errors (429, 502, timeouts) | Set **`OPENALEX_MAILTO`** in `.env`; optional **`OPENALEX_MAX_RETRIES`** / **`OPENALEX_RETRY_BACKOFF_SEC`**; reduce **max works per mode**; read the JSON **`detail`** message from the API (also shown in the Discover UI). |
 | Web cannot reach API from the browser | **`NEXT_PUBLIC_API_URL=http://localhost:8000`** in `.env` when using `http://localhost:3000`. Custom hosts need CORS updates in `services/graph_api/main.py`. |
 | **`localhost:3000` won’t load** or `clearcites-web` exits immediately | With Docker, the **`web`** service must not run plain `next start` while `./web` is bind-mounted (there is no `.next` on the host). Compose should use **`npm run dev:docker`** (see `scholargraph/docker-compose.yml`). Run `docker compose up --build` again from `scholargraph/`. |
+| **Next.js shows 404** for `/` or `/discover` at port 3000 | Local dev uses **`NEXT_PUBLIC_BASE_PATH=""`** (root). If you still see 404s, ensure you are not using an old image: rebuild the **web** service. The GitHub Pages site lives under **`/clearCites`** only in CI (`pages.yml` sets that env). |
 
 ---
 
