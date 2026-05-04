@@ -82,6 +82,20 @@ export default function Home() {
       {/* CTA */}
       <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", justifyContent: "center" }}>
         <a
+          href="/explore"
+          style={{
+            background: "linear-gradient(135deg, #22c55e, #16a34a)",
+            color: "#fff",
+            padding: "0.75rem 1.75rem",
+            borderRadius: 8,
+            fontWeight: 600,
+            textDecoration: "none",
+            fontSize: "0.95rem",
+          }}
+        >
+          Explore graph
+        </a>
+        <a
           href="https://github.com/Qrytics/clearCites"
           target="_blank"
           rel="noopener noreferrer"

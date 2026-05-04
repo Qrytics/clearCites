@@ -20,7 +20,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
  * Fetches graph data (nodes + edges) for a seed DOI from the backend API
  * and re-fetches whenever seedDoi or depth changes.
  */
-export function useGraphData(seedDoi: string, depth = 2): GraphState {
+export function useGraphData(seedDoi: string, depth = 2, expand?: string): GraphState {
   const [state, setState] = useState<GraphState>({
     nodes: [],
     edges: [],
@@ -33,6 +33,7 @@ export function useGraphData(seedDoi: string, depth = 2): GraphState {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const params = new URLSearchParams({ doi: seedDoi, depth: String(depth) });
+      if (expand) params.set("expand", expand);
       const res = await fetch(`${API_BASE}/graph?${params.toString()}`);
       if (!res.ok) {
         throw new Error(`API responded with ${res.status}: ${res.statusText}`);
@@ -46,7 +47,7 @@ export function useGraphData(seedDoi: string, depth = 2): GraphState {
         error: err instanceof Error ? err.message : "Unknown error",
       }));
     }
-  }, [seedDoi, depth]);
+  }, [seedDoi, depth, expand]);
 
   useEffect(() => {
     fetchGraph();

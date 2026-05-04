@@ -30,18 +30,60 @@ interface PaperData {
 }
 
 interface GraphNode extends Node {
-  data: PaperData & { label: string };
+  /** API may attach kind: paper | author | keyword; papers include doi/title fields. */
+  data: (Partial<PaperData> & { label: string; kind?: string }) | Record<string, unknown>;
 }
 
 interface Props {
   seedDoi: string;
   depth?: number;
+  /** Comma list passed to GET /graph (e.g. citations,authors,coauthors,keywords). */
+  expand?: string;
 }
 
-/** Scale node size based on the paper's impact_score (0–1). */
-function nodeStyle(impactScore: number | undefined): React.CSSProperties {
-  const score = impactScore ?? 0;
-  const size = 40 + Math.round(score * 60); // 40 px – 100 px
+type NodeKind = "paper" | "author" | "keyword" | undefined;
+
+/** Visual style by node kind; papers scale with impact_score (0–1). */
+function nodeStyle(data: Record<string, unknown> | undefined): React.CSSProperties {
+  const kind = data?.kind as NodeKind;
+  if (kind === "author") {
+    return {
+      width: 120,
+      minHeight: 36,
+      borderRadius: 8,
+      background: "rgba(245, 158, 11, 0.95)",
+      border: "2px solid #d97706",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#1f2937",
+      fontSize: 11,
+      fontWeight: 600,
+      textAlign: "center",
+      padding: "6px 8px",
+      cursor: "pointer",
+    };
+  }
+  if (kind === "keyword") {
+    return {
+      width: 100,
+      minHeight: 32,
+      borderRadius: 6,
+      background: "rgba(20, 184, 166, 0.9)",
+      border: "2px solid #0d9488",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#fff",
+      fontSize: 9,
+      fontWeight: 600,
+      textAlign: "center",
+      padding: 4,
+      cursor: "pointer",
+    };
+  }
+  const score = (data?.impact_score as number | undefined) ?? 0;
+  const size = 40 + Math.round(score * 60);
   const opacity = 0.5 + score * 0.5;
   return {
     width: size,
@@ -60,8 +102,8 @@ function nodeStyle(impactScore: number | undefined): React.CSSProperties {
   };
 }
 
-const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2 }) => {
-  const { nodes: rawNodes, edges: rawEdges, loading, error } = useGraphData(seedDoi, depth);
+const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2, expand }) => {
+  const { nodes: rawNodes, edges: rawEdges, loading, error } = useGraphData(seedDoi, depth, expand);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<GraphNode["data"]>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -72,8 +114,12 @@ const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2 }) => {
     const rfNodes: Node[] = rawNodes.map((n) => ({
       id: n.id,
       position: { x: Math.random() * 600, y: Math.random() * 400 },
-      data: { label: n.label ?? n.id, ...n.data },
-      style: nodeStyle(n.data?.impact_score as number | undefined),
+      data: {
+        ...n.data,
+        label: n.label ?? n.id,
+        title: (n.data?.title as string | undefined) ?? n.label ?? n.id,
+      },
+      style: nodeStyle(n.data as Record<string, unknown> | undefined),
     }));
     setNodes(rfNodes);
     setEdges(rawEdges);
@@ -84,16 +130,24 @@ const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2 }) => {
     [setEdges]
   );
 
-  const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      setSelectedPaper(node.data as PaperData);
-    },
-    []
-  );
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    const d = node.data as PaperData & { kind?: string };
+    if (d.kind && d.kind !== "paper") return;
+    if (!d.doi) return;
+    setSelectedPaper(d as PaperData);
+  }, []);
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-indigo-400">
+      <div
+        style={{
+          display: "flex",
+          height: "100%",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#818cf8",
+        }}
+      >
         Loading graph…
       </div>
     );
@@ -101,7 +155,15 @@ const GraphCanvas: React.FC<Props> = ({ seedDoi, depth = 2 }) => {
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center text-red-400">
+      <div
+        style={{
+          display: "flex",
+          height: "100%",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#f87171",
+        }}
+      >
         {error}
       </div>
     );
