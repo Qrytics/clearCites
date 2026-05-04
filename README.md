@@ -65,9 +65,10 @@ Work **top to bottom** so you do not skip a line. After any change to `.env`, re
 | 5 | **`CROSSREF_MAILTO`** | Optional | Use for [CrossRef polite pool](https://github.com/CrossRef/rest-api-doc#good-manners--more-reliable-service) when running **`clearcites-ingest --source crossref`**. The API also uses it as a **fallback** mailto for OpenAlex when `OPENALEX_MAILTO` is unset. |
 | 6 | **`SEMANTIC_SCHOLAR_API_KEY`** | Optional | Leave empty for anonymous Semantic Scholar; set a key for higher rate limits on **`clearcites-ingest`** (Semantic Scholar source). |
 | 7 | **`NEXT_PUBLIC_API_URL`** | **Yes if you run Next.js on the host** | Example: **`http://localhost:8000`**. With **this repo’s `docker compose`**, the **web** service is already given that URL in `docker-compose.yml`, so local Docker browsing works even if you do not customize this line—set it anyway if you later run **`npm run dev`** outside Docker. |
-| 8 | **`OPENALEX_MAX_RETRIES`**, **`OPENALEX_RETRY_BACKOFF_SEC`** | Optional | Uncomment in `.env.example` to tune retries. The **default** `docker-compose.yml` does **not** pass these into **graph_api**, so the running API uses code defaults (**`3`** retries, **`0.75`** s backoff) unless you add the variables to **`graph_api.environment`** in Compose or run the API outside Docker. |
+| 8 | **`NEXT_PUBLIC_BASE_PATH`** | **Usually leave empty** | For **`http://localhost:3000/`** at the **site root** (home, `/discover`, `/explore`), leave this **empty** or unset. **`docker-compose.yml`** sets **`NEXT_PUBLIC_BASE_PATH=""`** on the **web** container so local Docker always matches that. Use **`/clearCites`** only if you intentionally want the same URL layout as [GitHub Pages](https://qrytics.github.io/clearCites/) while developing on the host (then open **`http://localhost:3000/clearCites/…`**). The Pages workflow sets this path in CI only. |
+| 9 | **`OPENALEX_MAX_RETRIES`**, **`OPENALEX_RETRY_BACKOFF_SEC`** | Optional | Uncomment in `.env.example` to tune retries. The **default** `docker-compose.yml` does **not** pass these into **graph_api**, so the running API uses code defaults (**`3`** retries, **`0.75`** s backoff) unless you add the variables to **`graph_api.environment`** in Compose or run the API outside Docker. |
 
-**Compose note:** **`OPENALEX_MAILTO`** and **`CROSSREF_MAILTO`** from your `.env` are injected into the **graph_api** container automatically (`docker-compose.yml`). **`SEMANTIC_SCHOLAR_API_KEY`** is as well (for any server-side use).
+**Compose note:** **`OPENALEX_MAILTO`** and **`CROSSREF_MAILTO`** from your `.env` are injected into the **graph_api** container automatically (`docker-compose.yml`). **`SEMANTIC_SCHOLAR_API_KEY`** is as well (for any server-side use). The **web** service gets **`NEXT_PUBLIC_API_URL`**, **`NEXT_PUBLIC_BASE_PATH`**, the **`dev:docker`** command, and volumes from the same file—see **§2.1**.
 
 **Password caveat:** If you change **`NEO4J_PASSWORD`** after Neo4j has already been created, the old password may still live in the Docker volume. Use **`docker compose down -v`** (see **§3.4**) only if you intend to wipe data and start fresh.
 
@@ -91,6 +92,20 @@ docker compose up --build
 | Web app | http://localhost:3000 — **[/discover](http://localhost:3000/discover)** (OpenAlex) · **[/explore](http://localhost:3000/explore)** (manual DOI graph) |
 
 Leave this terminal open while you work. Use a **second** terminal for ingest and `curl` examples.
+
+### 2.1 Web app in Docker (bind mount, dev server, `.next` volume)
+
+This matters if you change the frontend or hit odd Next.js errors.
+
+| Mechanism | Why it exists |
+|-------------|----------------|
+| **`./web:/app` bind mount** | Your edited files under **`scholargraph/web/`** show up in the container immediately. |
+| **`npm run dev:docker`** (see `docker-compose.yml`) | A production **`next start`** would need a **`.next`** build inside `/app`, but the bind mount hides the image’s build. The dev server compiles on demand instead. |
+| **Named volume `clearcites_web_next` → `/app/.next`** | Next’s cache and dev output live **outside** the bind mount. Without this, a **`web/.next`** folder on your host (empty or stale) could break the app with missing **`required-server-files.json`** or 500s. |
+| **`NEXT_PUBLIC_BASE_PATH=""` in Compose** | Serves the app at **`/`** (not under **`/clearCites`**). GitHub Pages still uses **`/clearCites`** via CI only. |
+| **Discover global CSS** | Next.js allows **global** stylesheets only from **`web/app/layout.tsx`**. Discover styles live in **`web/app/discover/discover.css`** and are imported there. If you add more global CSS, import it from the **root** layout, not from nested `app/.../layout.tsx`. |
+
+**If you need a clean Next cache:** `docker compose down` then remove the volume explicitly, e.g. `docker volume rm scholargraph_clearcites_web_next` (prefix may match your project folder name), then **`docker compose up --build`**. Optionally delete **`scholargraph/web/.next`** on the host so nothing stale shadows the mount (Compose’s volume normally overrides that path in the container anyway).
 
 ---
 
@@ -287,6 +302,8 @@ curl -s "http://localhost:8000/graph?doi=10.1038%2Fnature14539&depth=2&expand=ci
 | Web cannot reach API from the browser | **`NEXT_PUBLIC_API_URL=http://localhost:8000`** in `.env` when using `http://localhost:3000`. Custom hosts need CORS updates in `services/graph_api/main.py`. |
 | **`localhost:3000` won’t load** or `clearcites-web` exits immediately | With Docker, the **`web`** service must not run plain `next start` while `./web` is bind-mounted (there is no `.next` on the host). Compose should use **`npm run dev:docker`** (see `scholargraph/docker-compose.yml`). Run `docker compose up --build` again from `scholargraph/`. |
 | **Next.js shows 404** for `/` or `/discover` at port 3000 | Local dev uses **`NEXT_PUBLIC_BASE_PATH=""`** (root). If you still see 404s, ensure you are not using an old image: rebuild the **web** service. The GitHub Pages site lives under **`/clearCites`** only in CI (`pages.yml` sets that env). |
+| **500 on `/discover`** or logs like **`Module parse failed`** on **`discover.css`** | Global CSS must be imported only from **`web/app/layout.tsx`** (see **§2.1**). Nested layouts must not import global `.css` files. |
+| **`ENOENT` … `required-server-files.json`** under **`clearcites-web`** | Usually a broken or host-shadowed **`.next`**. Ensure **`docker-compose.yml`** still mounts the **`clearcites_web_next`** volume on **`/app/.next`**, then **`docker compose down`**, remove that Docker volume if needed, and **`docker compose up --build`**. Delete **`scholargraph/web/.next`** on the host if it exists. |
 
 ---
 

@@ -60,7 +60,10 @@ services:
     volumes:
       - ./web:/app
       - /app/node_modules
+      # Keep Next dev output off the bind mount (avoids ENOENT / broken .next on the host).
+      - clearcites_web_next:/app/.next
 
 volumes:
   neo4j_data:
   neo4j_logs:
+  clearcites_web_next:

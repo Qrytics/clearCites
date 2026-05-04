@@ -1,7 +1,5 @@
 import { Courier_Prime, DM_Sans, Fraunces } from "next/font/google";
 
-import "./discover.css";
-
 const fontMono = Courier_Prime({
   subsets: ["latin"],
   weight: ["400", "700"],

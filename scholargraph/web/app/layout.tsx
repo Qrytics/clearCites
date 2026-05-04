@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import "./discover/discover.css";
+
 export const metadata: Metadata = {
   title: "clearCites — citation graph",
   description:
