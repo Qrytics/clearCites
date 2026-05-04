@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # ── Neo4j graph database ────────────────────────────────────────────────
   neo4j:
