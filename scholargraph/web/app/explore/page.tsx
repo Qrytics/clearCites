@@ -71,6 +71,9 @@ export default function ExplorePage() {
         <Link href="/" style={{ color: "#818cf8", textDecoration: "none", fontWeight: 600 }}>
           ← Home
         </Link>
+        <Link href="/discover" style={{ color: "#d4a843", textDecoration: "none", fontWeight: 600 }}>
+          Discover
+        </Link>
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: "0.875rem", color: "#94a3b8" }}>DOI</span>
           <input

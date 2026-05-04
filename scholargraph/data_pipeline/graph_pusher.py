@@ -36,7 +36,12 @@ ON CREATE SET
     p.impact_score   = 0.0,
     p.created_at     = datetime()
 ON MATCH SET
-    p.cited_by_count = $cited_by_count
+    p.cited_by_count = $cited_by_count,
+    p.title = CASE WHEN $title IS NOT NULL AND trim($title) <> '' THEN $title ELSE p.title END,
+    p.abstract = CASE WHEN $abstract IS NOT NULL AND trim($abstract) <> '' THEN $abstract ELSE p.abstract END,
+    p.year = coalesce($year, p.year),
+    p.funding_source = CASE WHEN $funding_source IS NOT NULL AND trim($funding_source) <> ''
+      THEN $funding_source ELSE p.funding_source END
 """
 
 _MERGE_AUTHOR = """

@@ -2,7 +2,7 @@
 
 This folder is the **runnable stack** for clearCites: Neo4j, the graph API, the Next.js web app, and the data pipeline.
 
-The **full walkthrough** (dependencies, Docker, schema, ingest, search, and `/explore`) is in the repository root: **[../README.md](../README.md)**.
+The **full walkthrough** (dependencies, Docker, schema, Discover, `/explore`, ingest) is in the repository root: **[../README.md](../README.md)**.
 
 ---
 
@@ -43,7 +43,7 @@ clearcites-ingest 10.1038/nature14539
 
 | Service | URL |
 |---------|-----|
-| Web | http://localhost:3000 — use **/explore** for the graph |
+| Web | http://localhost:3000 — **/discover** (OpenAlex terminal) · **/explore** (manual DOI graph) |
 | API docs | http://localhost:8000/docs |
 | Neo4j Browser | http://localhost:7474 |
 
@@ -51,4 +51,4 @@ clearcites-ingest 10.1038/nature14539
 
 ## Need help?
 
-See **[Troubleshooting](../README.md#8-troubleshooting)** in the main README (Docker engine, Neo4j password, empty graph).
+See **[Troubleshooting](../README.md#9-troubleshooting)** in the main README (Docker engine, Neo4j password, empty graph).

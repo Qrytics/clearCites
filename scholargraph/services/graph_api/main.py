@@ -9,13 +9,29 @@ import hashlib
 import os
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from neo4j import AsyncGraphDatabase
+
+from services.graph_api import openalex_routes
 
 app = FastAPI(
     title="clearCites API",
     description="Graph traversal API for the clearCites research visualization tool.",
     version="0.1.0",
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(openalex_routes.router)
 
 
 def _driver():

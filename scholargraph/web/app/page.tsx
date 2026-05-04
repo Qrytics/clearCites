@@ -82,6 +82,20 @@ export default function Home() {
       {/* CTA */}
       <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", justifyContent: "center" }}>
         <a
+          href="/discover"
+          style={{
+            background: "linear-gradient(135deg, #d4a843, #8a6c28)",
+            color: "#0c0c0b",
+            padding: "0.75rem 1.75rem",
+            borderRadius: 8,
+            fontWeight: 600,
+            textDecoration: "none",
+            fontSize: "0.95rem",
+          }}
+        >
+          Discover (OpenAlex)
+        </a>
+        <a
           href="/explore"
           style={{
             background: "linear-gradient(135deg, #22c55e, #16a34a)",

@@ -4,6 +4,13 @@
 
 clearCites maps research papers as a graph: **papers** as nodes, **citations**, **authors**, **keywords**, and **funders** as relationships. This README walks you from **installing dependencies** through **searching for a paper** and **visualizing everything related to it**.
 
+**Two paths**
+
+| Path | When to use |
+|------|----------------|
+| **[Discover](http://localhost:3000/discover)** (`/discover`) | Default: search **OpenAlex** in the browser, pick a work, choose neighborhoods (citations, co-authors, …), **ingest into Neo4j automatically**, then see the graph on the same page. |
+| **Manual DOI** (`/explore` + `clearcites-ingest`) | You already have DOIs, use Semantic Scholar/CrossRef CLI ingest, or want **Neo4j-only** `GET /search`. |
+
 ---
 
 ## What you need installed
@@ -15,7 +22,11 @@ clearCites maps research papers as a graph: **papers** as nodes, **citations**, 
 | **Python 3.11+** and **pip** | Ingest papers into Neo4j from your machine (`clearcites-ingest`), and run tests |
 | **Node.js 20+** (optional) | Only if you run the frontend with `npm run dev` *outside* Docker |
 
-Optional: a **Semantic Scholar API key** in `.env` as `SEMANTIC_SCHOLAR_API_KEY` for higher rate limits when ingesting. CrossRef works without a key; set `CROSSREF_MAILTO` in `.env` for their [polite pool](https://github.com/CrossRef/rest-api-doc#good-manners--more-reliable-service).
+Optional keys / email:
+
+- **`SEMANTIC_SCHOLAR_API_KEY`** — higher rate limits for `clearcites-ingest` (Semantic Scholar).
+- **`CROSSREF_MAILTO`** — [CrossRef polite pool](https://github.com/CrossRef/rest-api-doc#good-manners--more-reliable-service) for CrossRef ingest.
+- **`OPENALEX_MAILTO`** — [OpenAlex polite pool](https://docs.openalex.org/how-to-use/api) for **Discover** and `/openalex/*` (strongly recommended).
 
 ---
 
@@ -27,11 +38,7 @@ cd clearCites/scholargraph
 cp .env.example .env
 ```
 
-Edit `.env`:
-
-- **`NEO4J_PASSWORD`** — used by Docker **and** by Neo4j Browser; the default in `.env.example` is `scholargraph` (not `clearcites`).
-- **`SEMANTIC_SCHOLAR_API_KEY`** — optional.
-- **`CROSSREF_MAILTO`** — your email when using CrossRef from the ingest CLI.
+Edit `.env` (see keys above). Required for Neo4j: **`NEO4J_PASSWORD`** (default in `.env.example`: `scholargraph`). Compose passes **`OPENALEX_MAILTO`** and **`CROSSREF_MAILTO`** into the **graph_api** container for OpenAlex and tooling.
 
 ---
 
@@ -48,7 +55,7 @@ docker compose up --build
 |---------|-----|
 | Neo4j Browser | http://localhost:7474 |
 | Graph API (Swagger UI) | http://localhost:8000/docs |
-| Web app | http://localhost:3000 |
+| Web app | http://localhost:3000 — **[/discover](http://localhost:3000/discover)** (OpenAlex) · **[/explore](http://localhost:3000/explore)** (manual DOI graph) |
 
 Leave this terminal open while you work. Use a **second** terminal for ingest and `curl` examples.
 
@@ -87,9 +94,30 @@ This installs the **`clearcites`** package and the **`clearcites-ingest`** comma
 
 ---
 
-## 5. Put papers in the graph (required before search/visualize)
+## 5. Discover — OpenAlex search → Neo4j → graph (no manual DOI typing)
 
-The graph API searches **Neo4j**, not the live web. Ingest at least one paper (and ideally a few referenced works) so `/search` and `/explore` have data.
+The **Discover** page (ARXTERM-inspired terminal UI) walks through the flow you described: search OpenAlex, pick a work, choose what kinds of related papers to pull, then **ingest and visualize** in one place.
+
+1. Complete steps **1–3** above (Docker up, Neo4j schema applied).
+2. Set **`OPENALEX_MAILTO`** in `scholargraph/.env` (same idea as CrossRef polite pool).
+3. Open **http://localhost:3000/discover**.
+4. Enter a query, optional filters (year, type, OA, …), click **Run query**.
+5. Click a **paper card** to select it (highlighted border).
+6. Tick neighborhood modes (**references / cited by / shared authors / OpenAlex concept cluster / related**), set **max works per mode**, then **Ingest & visualize**.  
+   The API calls OpenAlex, upserts works into Neo4j via `push_paper`, then embeds the same React Flow graph as `/explore`.
+
+**Entity tabs** (Works / Authors / …) search the live OpenAlex catalog; **graph ingest is only available for Works** (authors and other entities are browse-only for now).
+
+**API** (also in Swagger under **openalex**):
+
+- `GET /openalex/search?q=…&entity=works&…` — proxy search with optional work filters (`year_from`, `year_to`, `work_type`, `min_citations`, `is_oa`, `has_abstract`, `sort_field`, `sort_dir`, `page`, `per_page`).
+- `POST /openalex/explore` — JSON `{ "seed_work_id": "W…", "modes": ["citations_out",…], "limit_per_mode": 25 }` — fetch related works and merge into Neo4j; response includes `seed_canonical_id` for `GET /graph`.
+
+---
+
+## 6. Put papers in the graph manually (optional if you use Discover)
+
+The built-in **`GET /search`** endpoint queries **Neo4j** only. If you are **not** using Discover, ingest papers first so `/search` and `/explore` have data.
 
 **Set Neo4j connection** to match Docker’s published Bolt port (same password as in `.env`):
 
@@ -121,7 +149,7 @@ Repeat for other DOIs if you want a richer neighborhood (citation edges and stub
 
 ---
 
-## 6. Search for a paper
+## 7. Search for a paper (Neo4j index)
 
 With the stack running, use the **Graph API** (Swagger at http://localhost:8000/docs or `curl`).
 
@@ -149,9 +177,13 @@ curl -s "http://localhost:8000/papers/10.1038%2Fnature14539"
 
 ---
 
-## 7. Visualize related papers (web UI)
+## 8. Visualize related papers (web UI)
 
-1. Open **http://localhost:3000/explore** (or click **Explore graph** on the home page).
+**After Discover:** the graph is already on `/discover` once ingest succeeds. You can also open **http://localhost:3000/explore** with the returned canonical id (DOI or `openalex:W…`).
+
+**Manual path:**
+
+1. Open **http://localhost:3000/explore** (or **Explore graph** on the home page).
 2. Paste the **DOI** you found (e.g. from `/search`), choose **depth** (1–3 citation hops), and toggle:
    - **Citations** — papers linked by `CITES` (direction: source **cites** target).
    - **Authors** — who wrote each paper in view.
@@ -169,14 +201,15 @@ curl -s "http://localhost:8000/graph?doi=10.1038%2Fnature14539&depth=2&expand=ci
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Issue | What to try |
 |--------|----------------|
 | `dockerDesktopLinuxEngine` / cannot connect to Docker | Start **Docker Desktop** and wait until `docker version` shows **Server**. |
 | Neo4j password rejected | Use **`NEO4J_PASSWORD`** from `scholargraph/.env`. If you changed it after first run, old volumes may keep the old password — run `docker compose down -v` and start again (data loss). |
-| Empty search or empty graph | Ingest papers with **`clearcites-ingest`** while Neo4j is up. |
-| Web cannot reach API from the browser | With Docker Compose defaults, **`NEXT_PUBLIC_API_URL=http://localhost:8000`** in `.env` is correct when you open the site at `http://localhost:3000`. |
+| Empty **`GET /search`** or empty graph on **/explore** | Data must exist in Neo4j: use **/discover → Ingest & visualize**, or **`clearcites-ingest`**, then reload. |
+| OpenAlex / **Discover** errors (502, timeouts) | Set **`OPENALEX_MAILTO`** in `.env`, rebuild/restart compose; check OpenAlex status; reduce **max works per mode**. |
+| Web cannot reach API from the browser | **`NEXT_PUBLIC_API_URL=http://localhost:8000`** in `.env` when using `http://localhost:3000`. Custom hosts need CORS updates in `services/graph_api/main.py`. |
 
 ---
 
@@ -184,13 +217,15 @@ curl -s "http://localhost:8000/graph?doi=10.1038%2Fnature14539&depth=2&expand=ci
 
 ```
 scholargraph/
-├── data_pipeline/          # API clients, parser, graph_pusher
+├── data_pipeline/          # Semantic Scholar, CrossRef, OpenAlex clients; parser; graph_pusher; openalex_subgraph
 ├── tools/
-│   └── ingest_doi.py       # CLI entry: `clearcites-ingest` (see pyproject.toml)
+│   └── ingest_doi.py       # `clearcites-ingest` (pyproject.toml)
 ├── services/
-│   ├── graph_api/          # FastAPI (search, /graph, papers, …)
+│   ├── graph_api/          # FastAPI: /search, /graph, /openalex/*, CORS for localhost
 │   └── ai_summarizer/
-├── web/                    # Next.js (home + /explore)
+├── web/app/
+│   ├── discover/           # OpenAlex terminal UI + ingest + embedded graph
+│   └── explore/            # Manual DOI + graph toggles
 ├── db/schema.cypher
 ├── docker-compose.yml
 └── .env.example
@@ -220,7 +255,7 @@ More READMEs:
 | API | Python 3.11, FastAPI |
 | Web | Next.js, React Flow |
 | ML helpers | scikit-learn, numpy (see `ai_summarizer`) |
-| External data | Semantic Scholar, CrossRef |
+| External data | Semantic Scholar, CrossRef, **OpenAlex** (Discover + `/openalex/*`) |
 
 ---
 
@@ -235,6 +270,8 @@ Interactive docs: **http://localhost:8000/docs** when the stack is running.
 | `GET` | `/papers/{doi}/cited-by` | Papers that cite this paper |
 | `GET` | `/papers/{doi}/pedigree` | Citation ancestors |
 | `GET` | `/graph?doi=…&depth=…&expand=…` | JSON graph for the explorer (`expand`: `citations`, `authors`, `coauthors`, `keywords`) |
+| `GET` | `/openalex/search?…` | OpenAlex proxy search (see Swagger; powers **/discover**) |
+| `POST` | `/openalex/explore` | Ingest seed + related works from OpenAlex into Neo4j |
 | `GET` | `/search?q=…` | Text search on stored title/abstract |
 | `GET` | `/search/by-keyword?keyword=…` | Papers linked to keyword nodes |
 | `POST` | `/ai/summary` | Plain-language summary (when wired) |
@@ -258,6 +295,18 @@ python -m pytest
 **Node labels:** `Paper`, `Author`, `Keyword`, `Funder`.
 
 **Relationship types:** `WROTE`, `CITES`, `HAS_KEYWORD`, `FUNDED_BY`, and optional typed edges `VALIDATES`, `BUILDS_ON`, `CHALLENGES` when you add them via the API or pipeline.
+
+---
+
+## Current limitations (handoff)
+
+These are **known** gaps, not setup mistakes:
+
+- **Discover graph ingest** is only for **Works**; Authors / Institutions / Sources tabs are search-only.
+- **Paper keys** are DOI when present, else `openalex:W…`; mixing stub vs full ingest for the same real-world paper can theoretically duplicate until everything is merged.
+- **Layout**: React Flow positions are **random** per load; no force-directed persistence yet.
+- **Tests**: automated tests cover the mocked graph API; **OpenAlex routes** are not heavily integration-tested against the live API.
+- **`/ai/*`** endpoints may still be partial depending on how `ai_summarizer` is mounted in your branch.
 
 ---
 
