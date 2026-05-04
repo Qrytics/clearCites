@@ -97,6 +97,13 @@ docker compose up --build
 
 Once Neo4j is running, open the browser at http://localhost:7474 and run the contents of `db/schema.cypher`.
 
+Default login info:
+
+```
+Username: neo4j
+Password: scholargraph
+```
+
 ---
 
 ## 🧠 Key Features
