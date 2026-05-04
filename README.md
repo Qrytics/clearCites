@@ -140,7 +140,7 @@ This installs the **`clearcites`** package and the **`clearcites-ingest`** comma
 The **Discover** page (ARXTERM-inspired terminal UI) walks through the flow you described: search OpenAlex, pick a work, choose what kinds of related papers to pull, then **ingest and visualize** in one place.
 
 1. Complete steps **1–3** above (Docker up, Neo4j schema applied).
-2. Set **`OPENALEX_MAILTO`** in `scholargraph/.env` (same idea as CrossRef polite pool).
+2. Set **`OPENALEX_MAILTO`** in `scholargraph/.env` (replace "your@email.com" with a valid email).
 3. Open **http://localhost:3000/discover**.
 4. Enter a query, optional filters (year, type, OA, …), click **Run query**.
 5. Click a **paper card** to select it (highlighted border).
