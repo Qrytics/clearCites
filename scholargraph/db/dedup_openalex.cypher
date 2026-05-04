@@ -1,11 +1,4 @@
-// ---------------------------------------------------------------------------
-// Optional: find Paper nodes that share the same OpenAlex work id but
-// different `doi` keys (e.g. one row keyed as 10.x/... and another as openalex:W...).
-//
-// Ingest now sets `p.openalex_id` on every upsert so you can spot collisions.
-// Merging nodes is graph-specific (re-point CITES/WROTE/etc.); review in Neo4j
-// Browser before running destructive writes.
-// ---------------------------------------------------------------------------
+// Papers sharing the same openalex_id but different doi keys (review before merging).
 
 MATCH (p:Paper)
 WHERE p.openalex_id IS NOT NULL AND trim(p.openalex_id) <> ""
